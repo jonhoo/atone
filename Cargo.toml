@@ -12,7 +12,7 @@ keywords = ["vec", "no_std", "vecdeque", "amortized"]
 categories = ["data-structures", "no-std"]
 
 [badges]
-azure-devops = { project = "jonhoo/jonhoo", pipeline = "atone", build = "27" }
+azure-devops = { project = "jonhoo/jonhoo", pipeline = "atone", build = "28" }
 codecov = { repository = "jonhoo/atone", branch = "master", service = "github" }
 maintenance = { status = "experimental" }
 
