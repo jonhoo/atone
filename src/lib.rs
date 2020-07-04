@@ -1123,9 +1123,10 @@ impl<T> Vc<T> {
     /// Removes and returns the element at `index` from the `Vc`.
     /// Whichever end is closer to the removal point will be moved to make
     /// room, and all the affected elements will be moved to new positions.
-    /// Returns `None` if `index` is out of bounds.
     ///
-    /// Element at index 0 is the front of the queue.
+    /// # Panics
+    ///
+    /// Panics if `index` is out of bounds.
     ///
     /// # Examples
     ///
@@ -1138,22 +1139,30 @@ impl<T> Vc<T> {
     /// buf.push_back(3);
     /// assert_eq!(buf, vec![1, 2, 3]);
     ///
-    /// assert_eq!(buf.remove(1), Some(2));
+    /// assert_eq!(buf.remove(1), 2);
     /// assert_eq!(buf, vec![1, 3]);
     /// ```
-    pub fn remove(&mut self, index: usize) -> Option<T> {
+    pub fn remove(&mut self, index: usize) -> T {
+        #[cold]
+        #[inline(never)]
+        fn assert_failed(index: usize, len: usize) -> ! {
+            panic!("removal index (is {}) should be < len (is {})", index, len);
+        }
+
         let old_len = self.old_len();
         if index < old_len {
             // index < old_len implies old_len > 0 and index in-bounds
             unsafe {
-                let v = self.old_mut().remove(index)?;
+                let v = self.old_mut().remove(index);
                 if self.old_ref().is_empty() {
                     let _ = self.take_old_unchecked();
                 }
-                Some(v)
+                v.unwrap_or_else(|| assert_failed(index, self.len()))
             }
         } else {
-            self.new_tail.remove(index - old_len)
+            self.new_tail
+                .remove(index - old_len)
+                .unwrap_or_else(|| assert_failed(index, self.len()))
         }
     }
 
@@ -1790,7 +1799,7 @@ mod tests {
             for i in 0..50 {
                 let v = vs.remove(0);
 
-                assert_eq!(v.as_ref().map(|v| v.k), Some(i));
+                assert_eq!(v.k, i);
 
                 DROP_VECTOR.with(|v| {
                     assert_eq!(v.borrow()[i], 1);
@@ -1873,9 +1882,10 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_empty_remove() {
         let mut vs: Vc<i32> = Vc::new();
-        assert_eq!(vs.remove(0), None);
+        vs.remove(0);
     }
 
     #[test]
@@ -1927,7 +1937,7 @@ mod tests {
 
         // remove forwards
         for i in 1..M {
-            assert_eq!(vs.remove(0), Some(i));
+            assert_eq!(vs.remove(0), i);
 
             for j in 1..=i {
                 assert!(!vs.contains(&j));
@@ -1966,7 +1976,7 @@ mod tests {
         let mut vs = Vc::with_capacity(4);
         vs.push(1);
         assert!(!vs.is_empty());
-        assert!(vs.remove(0).is_some());
+        vs.remove(0);
         assert!(vs.is_empty());
     }
 
