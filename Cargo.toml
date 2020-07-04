@@ -1,0 +1,28 @@
+[package]
+name = "atone"
+version = "0.1.0"
+authors = ["Jon Gjengset <jon@thesquareplanet.com>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+
+readme = "README.md"
+repository = "https://github.com/jonhoo/atone.git"
+
+keywords = ["vec", "no_std", "vecdeque", "amortized"]
+categories = ["data-structures", "no-std"]
+
+[badges]
+azure-devops = { project = "jonhoo/jonhoo", pipeline = "atone", build = "27" }
+codecov = { repository = "jonhoo/atone", branch = "master", service = "github" }
+maintenance = { status = "experimental" }
+
+[dependencies]
+
+[dev-dependencies]
+rand = { version = "0.7.3", features = ["small_rng"] }
+quickcheck = { version = "0.9", default-features = false }
+jemallocator = "0.3"
+
+[[bench]]
+name = "vroom"
+harness = false
