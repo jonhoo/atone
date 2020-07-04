@@ -22,6 +22,8 @@ maintenance = { status = "experimental" }
 [dev-dependencies]
 rand = { version = "0.7.3", features = ["small_rng"] }
 quickcheck = { version = "0.9", default-features = false }
+
+[target.'cfg(not(target_env="msvc"))'.dev-dependencies]
 jemallocator = "0.3"
 
 [[bench]]
