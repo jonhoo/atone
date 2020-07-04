@@ -6,6 +6,7 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 
 readme = "README.md"
+description = "A VecDeque and Vec variant that spreads resize load across pushes."
 repository = "https://github.com/jonhoo/atone.git"
 
 keywords = ["vec", "no_std", "vecdeque", "amortized"]
