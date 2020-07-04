@@ -54,6 +54,17 @@ macro_rules! _impl {
             )
         }
 
+        fn fold<Acc, F>(self, accum: Acc, mut f: F) -> Acc
+        where
+            F: FnMut(Acc, Self::Item) -> Acc,
+        {
+            if let Some(head) = self.head {
+                self.tail.fold(head.fold(accum, &mut f), f)
+            } else {
+                self.tail.fold(accum, f)
+            }
+        }
+
         fn nth(&mut self, n: usize) -> Option<Self::Item> {
             if let Some(ref mut head) = self.head {
                 let head_ln = head.len();
@@ -87,6 +98,17 @@ macro_rules! _impl {
                 }
             } else {
                 self.tail.next_back()
+            }
+        }
+
+        fn rfold<Acc, F>(self, accum: Acc, mut f: F) -> Acc
+        where
+            F: FnMut(Acc, Self::Item) -> Acc,
+        {
+            if let Some(head) = self.head {
+                head.rfold(self.tail.rfold(accum, &mut f), f)
+            } else {
+                self.tail.rfold(accum, f)
             }
         }
     };
