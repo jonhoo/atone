@@ -1,7 +1,7 @@
 jobs:
  - template: default.yml@templates
    parameters:
-     minrust: 1.36.0 # alloc
+     minrust: 1.41.0 # relaxed coherence rules
      codecov_token: $(CODECOV_TOKEN_SECRET)
      env:
        QUICKCHECK_TESTS: 500
@@ -33,7 +33,7 @@ jobs:
            - miri
      - script: cargo miri setup
        displayName: cargo miri setup
-     - script: cargo miri test --features serde,raw -- -Zmiri-ignore-leaks
+     - script: cargo miri test -- -Zmiri-ignore-leaks
        displayName: cargo miri test
 
 resources:

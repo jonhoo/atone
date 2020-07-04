@@ -65,11 +65,8 @@ const R: usize = 8;
 #[macro_use]
 extern crate std;
 
-#[cfg(has_extern_crate_alloc)]
 #[cfg_attr(test, macro_use)]
 extern crate alloc;
-#[cfg(not(has_extern_crate_alloc))]
-extern crate std as alloc;
 
 use core::cmp::Ordering;
 use core::fmt;
