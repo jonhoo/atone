@@ -79,6 +79,7 @@ use core::ops::{Index, IndexMut, RangeBounds};
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
 
+mod external_trait_impls;
 mod iter;
 
 /// A `VecDeque` (and `Vec`) variant that spreads resize load across pushes.
