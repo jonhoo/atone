@@ -248,7 +248,7 @@ impl<T> Vc<T> {
             }
         } else if i_in_old {
             // NOTE: cannot use old_mut() here because of split borrows
-            debug_assert!(self.old_head.is_some());
+            debug_assert!(self.is_atoning());
             let old_mut = self
                 .old_head
                 .as_mut()
@@ -256,7 +256,7 @@ impl<T> Vc<T> {
             mem::swap(&mut old_mut[i], &mut self.new_tail[j - old_len])
         } else {
             // j must be in old, so old must be non-empty
-            debug_assert!(self.old_head.is_some());
+            debug_assert!(self.is_atoning());
             let old_mut = self
                 .old_head
                 .as_mut()
@@ -564,7 +564,7 @@ impl<T> Vc<T> {
         let head = if start_incl < old_len {
             // TODO: take_old when drained if start_incl == 0 && end_excl >= old_len
             // NOTE: cannot use old_mut() here because of split borrows
-            debug_assert!(self.old_head.is_some());
+            debug_assert!(self.is_atoning());
             let old_mut = self
                 .old_head
                 .as_mut()
@@ -846,7 +846,7 @@ impl<T> Vc<T> {
 
     #[inline]
     unsafe fn old_ref(&self) -> &VecDeque<T> {
-        debug_assert!(self.old_head.is_some());
+        debug_assert!(self.is_atoning());
         self.old_head
             .as_ref()
             .unwrap_or_else(|| core::hint::unreachable_unchecked())
@@ -854,7 +854,7 @@ impl<T> Vc<T> {
 
     #[inline]
     unsafe fn old_mut(&mut self) -> &mut VecDeque<T> {
-        debug_assert!(self.old_head.is_some());
+        debug_assert!(self.is_atoning());
         self.old_head
             .as_mut()
             .unwrap_or_else(|| core::hint::unreachable_unchecked())
@@ -866,8 +866,7 @@ impl<T> Vc<T> {
     }
 
     #[inline]
-    #[cfg(test)]
-    fn is_split(&self) -> bool {
+    fn is_atoning(&self) -> bool {
         self.old_head.is_some()
     }
 
@@ -1552,12 +1551,12 @@ mod tests {
         }
         assert!(m.iter().copied().eq(1..=3));
         // fourth push will split and migrate all elements
-        assert!(!m.is_split());
+        assert!(!m.is_atoning());
         m.push(4);
         // capacity should now be doubled
         assert_eq!(m.capacity(), 7);
         // and there should be no leftovers
-        assert!(!m.is_split());
+        assert!(!m.is_atoning());
         assert_eq!(m.old_head, None);
         assert_eq!(m.new_tail.len(), 4);
         for i in 1..=4 {
@@ -1578,7 +1577,7 @@ mod tests {
         // capacity should now be doubled
         assert_eq!(m.capacity(), 15);
         // and there should be leftovers
-        assert!(m.is_split());
+        assert!(m.is_atoning());
         assert_eq!(m.new_tail.len(), 1 + crate::R);
         assert_eq!(m.old_len(), 8 - (1 + crate::R));
         for i in 1..=8 {
@@ -1596,7 +1595,7 @@ mod tests {
 
         // if we do another push, it will move the rest of the items from old_head
         m.push(9);
-        assert!(!m.is_split());
+        assert!(!m.is_atoning());
         assert_eq!(m.new_tail.len(), 9);
         assert_eq!(m.old_head, None);
         // it should not have changed capacity
@@ -1878,7 +1877,7 @@ mod tests {
         for i in 0..32 {
             vs.push(i * 2);
         }
-        assert!(vs.is_split());
+        assert!(vs.is_atoning());
         assert_eq!(vs.len(), 32);
 
         assert!(vs.iter().copied().eq((0..32).map(|v| v * 2)));
@@ -1982,7 +1981,7 @@ mod tests {
         for i in 1..=8 {
             vs.push(i);
         }
-        assert!(vs.is_split());
+        assert!(vs.is_atoning());
 
         assert_eq!(vs[2 - 1], 2);
     }
@@ -1995,7 +1994,7 @@ mod tests {
         for i in 1..=8 {
             vs.push(i);
         }
-        assert!(vs.is_split());
+        assert!(vs.is_atoning());
 
         vs[9];
     }
@@ -2047,7 +2046,7 @@ mod tests {
         for x in 0..130 {
             vs.push(x);
         }
-        assert!(vs.is_split());
+        assert!(vs.is_atoning());
 
         vs.retain(|&e| e % 2 == 0);
         assert_eq!(vs.len(), 65);
