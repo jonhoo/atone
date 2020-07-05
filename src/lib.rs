@@ -248,7 +248,7 @@ impl<T> Vc<T> {
             }
         } else if i_in_old {
             // NOTE: cannot use old_mut() here because of split borrows
-            debug_assert!(self.is_atoning());
+            debug_assert!(self.old_head.is_some());
             let old_mut = self
                 .old_head
                 .as_mut()
@@ -256,7 +256,7 @@ impl<T> Vc<T> {
             mem::swap(&mut old_mut[i], &mut self.new_tail[j - old_len])
         } else {
             // j must be in old, so old must be non-empty
-            debug_assert!(self.is_atoning());
+            debug_assert!(self.old_head.is_some());
             let old_mut = self
                 .old_head
                 .as_mut()
@@ -564,7 +564,7 @@ impl<T> Vc<T> {
         let head = if start_incl < old_len {
             // TODO: take_old when drained if start_incl == 0 && end_excl >= old_len
             // NOTE: cannot use old_mut() here because of split borrows
-            debug_assert!(self.is_atoning());
+            debug_assert!(self.old_head.is_some());
             let old_mut = self
                 .old_head
                 .as_mut()
@@ -846,7 +846,7 @@ impl<T> Vc<T> {
 
     #[inline]
     unsafe fn old_ref(&self) -> &VecDeque<T> {
-        debug_assert!(self.is_atoning());
+        debug_assert!(self.old_head.is_some());
         self.old_head
             .as_ref()
             .unwrap_or_else(|| core::hint::unreachable_unchecked())
@@ -854,7 +854,7 @@ impl<T> Vc<T> {
 
     #[inline]
     unsafe fn old_mut(&mut self) -> &mut VecDeque<T> {
-        debug_assert!(self.is_atoning());
+        debug_assert!(self.old_head.is_some());
         self.old_head
             .as_mut()
             .unwrap_or_else(|| core::hint::unreachable_unchecked())
@@ -866,6 +866,7 @@ impl<T> Vc<T> {
     }
 
     #[inline]
+    #[cfg(test)]
     fn is_atoning(&self) -> bool {
         self.old_head.is_some()
     }
