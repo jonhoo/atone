@@ -96,7 +96,7 @@ mod tests {
         for i in 1..=8 {
             my_vec.push(i);
         }
-        assert!(my_vec.is_split());
+        assert!(my_vec.is_atoning());
         assert_tokens(
             &my_vec,
             &[
