@@ -59,3 +59,58 @@ where
         deserializer.deserialize_seq(visitor)
     }
 }
+
+#[cfg(test)]
+#[cfg(not(tarpaulin_include))] // don't count for coverage
+mod tests {
+    use crate::Vc;
+    use serde_test::{assert_tokens, Token};
+
+    #[test]
+    fn test_serde_empty_vc() {
+        let my_vec: Vc<u32> = Vc::default();
+        assert_tokens(&my_vec, &[Token::Seq { len: Some(0) }, Token::SeqEnd])
+    }
+
+    #[test]
+    fn test_serde_non_empty() {
+        let mut my_vec: Vc<u32> = Vc::default();
+        my_vec.push(1);
+        my_vec.push(2);
+        my_vec.push(3);
+        assert_tokens(
+            &my_vec,
+            &[
+                Token::Seq { len: Some(3) },
+                Token::U32(1),
+                Token::U32(2),
+                Token::U32(3),
+                Token::SeqEnd,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_serde_while_atoning() {
+        let mut my_vec: Vc<u32> = Vc::new();
+        for i in 1..=8 {
+            my_vec.push(i);
+        }
+        assert!(my_vec.is_split());
+        assert_tokens(
+            &my_vec,
+            &[
+                Token::Seq { len: Some(8) },
+                Token::U32(1),
+                Token::U32(2),
+                Token::U32(3),
+                Token::U32(4),
+                Token::U32(5),
+                Token::U32(6),
+                Token::U32(7),
+                Token::U32(8),
+                Token::SeqEnd,
+            ],
+        );
+    }
+}
