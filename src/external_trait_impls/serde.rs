@@ -18,6 +18,7 @@ where
     }
 }
 
+/// Picked from https://github.com/serde-rs/serde/blob/9f331cc25753edd71ad7ab0ea08a430fefaa90e1/serde/src/private/de.rs#L203
 #[inline]
 fn cautious_size_hint(hint: Option<usize>) -> usize {
     core::cmp::min(hint.unwrap_or(0), 4096)
