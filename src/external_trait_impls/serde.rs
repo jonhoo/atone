@@ -136,4 +136,34 @@ mod tests {
             ],
         );
     }
+
+    #[test]
+    fn test_vec_to_vc_serde() {
+        let sinful: alloc::vec::Vec<u32> = vec![1, 2, 3, 4];
+        let json = serde_json::to_string(&sinful).unwrap();
+        let atoner: Vc<u32> = serde_json::from_str(&json).unwrap();
+        for (s, a) in sinful.iter().zip(atoner.iter()) {
+            assert!(
+                s == a,
+                "Deserialized Vc is not identical to the original Vec."
+            );
+        }
+    }
+
+    #[test]
+    fn test_vc_to_vec_serde() {
+        let mut atoner: Vc<u32> = Vc::new();
+        atoner.push(1);
+        atoner.push(2);
+        atoner.push(3);
+        atoner.push(4);
+        let json = serde_json::to_string(&atoner).unwrap();
+        let baptized: Vc<u32> = serde_json::from_str(&json).unwrap();
+        for (a, b) in atoner.iter().zip(baptized.iter()) {
+            assert!(
+                a == b,
+                "Deserialized Vec is not identical to the original Vc."
+            );
+        }
+    }
 }

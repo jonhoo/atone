@@ -26,6 +26,7 @@ serde_ = { version = "1.0.114", default-features = false, optional = true, packa
 rand = { version = "0.7.3", features = ["small_rng"] }
 quickcheck = { version = "0.9", default-features = false }
 serde_test = "1.0.114"
+serde_json = "1.0.56"
 
 [features]
 serde = [ "serde_" ]
