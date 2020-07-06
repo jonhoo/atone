@@ -18,6 +18,18 @@ jobs:
           - thumbv7m-none-eabi
      - bash: cargo check --target thumbv7m-none-eabi
        displayName: cargo check --target thumbv7m-none-eabi
+ - job: features
+   displayName: "Check feature combinations"
+   pool:
+     vmImage: ubuntu-latest
+   steps:
+     - template: install-rust.yml@templates
+       parameters:
+         rust: stable
+     - script: cargo install cargo-hack
+       displayName: install cargo-hack
+     - script: cargo hack --feature-powerset check
+       displayName: cargo hack
  - job: miri
    displayName: "Run miri on test suite"
    pool:
@@ -33,7 +45,7 @@ jobs:
            - miri
      - script: cargo miri setup
        displayName: cargo miri setup
-     - script: cargo miri test -- -Zmiri-ignore-leaks
+     - script: cargo miri test --features serde,rayon -- -Zmiri-ignore-leaks
        displayName: cargo miri test
 
 resources:

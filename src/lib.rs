@@ -80,6 +80,7 @@ use core::ops::{Index, IndexMut, RangeBounds};
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
 
+mod external_trait_impls;
 mod iter;
 
 /// A `VecDeque` (and `Vec`) variant that spreads resize load across pushes.
@@ -1062,8 +1063,9 @@ impl<T> Vc<T> {
     }
 
     #[inline]
-    #[cfg(test)]
-    fn is_atoning(&self) -> bool {
+    #[doc(hidden)]
+    #[allow(dead_code)]
+    pub fn is_atoning(&self) -> bool {
         self.old_head.is_some()
     }
 
@@ -1546,6 +1548,30 @@ macro_rules! __impl_slice_eq1 {
 __impl_slice_eq1! { Vc<A>, Vec<B>, }
 __impl_slice_eq1! { Vc<A>, &[B], }
 __impl_slice_eq1! { Vc<A>, &mut [B], }
+
+// For symmetry:
+
+macro_rules! __impl_slice_eq2 {
+    ($lhs:ty, $rhs:ty, $($constraints:tt)*) => {
+        impl<A, B> PartialEq<$lhs> for $rhs
+        where
+            A: PartialEq<B>,
+            $($constraints)*
+        {
+            fn eq(&self, other: &$lhs) -> bool {
+                    other.old_head
+                        .iter()
+                        .flatten()
+                        .chain(other.new_tail.iter())
+                        .eq(self.iter())
+            }
+        }
+    }
+}
+
+__impl_slice_eq2! { Vc<A>, Vec<B>, }
+__impl_slice_eq2! { Vc<A>, &[B], }
+__impl_slice_eq2! { Vc<A>, &mut [B], }
 
 impl<A: PartialOrd> PartialOrd for Vc<A> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {

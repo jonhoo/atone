@@ -20,6 +20,9 @@ codecov = { repository = "jonhoo/atone", branch = "master", service = "github" }
 maintenance = { status = "experimental" }
 
 [dependencies]
+# For external trait impls
+rayon_ = { version = "1.0", optional = true, package = "rayon" }
+serde_ = { version = "1.0.114", default-features = false, optional = true, package = "serde" }
 
 [build-dependencies]
 # TODO: replace with https://github.com/rust-lang/rust/issues/64797
@@ -27,11 +30,22 @@ maintenance = { status = "experimental" }
 rustversion = "1.0.3"
 
 [dev-dependencies]
+lazy_static = "1.2"
 rand = { version = "0.7.3", features = ["small_rng"] }
 quickcheck = { version = "0.9", default-features = false }
+rayon_ = { version = "1.0", package = "rayon" }
+serde_test = "1.0.114"
+serde_json = "1.0.56"
+
+[features]
+serde = [ "serde_" ]
+rayon = [ "rayon_" ]
 
 [target.'cfg(not(target_env="msvc"))'.dev-dependencies]
 jemallocator = "0.3"
+
+[package.metadata.docs.rs]
+features = ["rayon", "serde"]
 
 [[bench]]
 name = "vroom"
