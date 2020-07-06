@@ -1218,7 +1218,7 @@ impl<T> Vc<T> {
             self.carry();
         } else if self.new_tail.capacity() == self.new_tail.len() {
             self.grow(1 /* the value we're about to insert */, false);
-            return self.insert(index, value);
+            self.insert(index, value)
         } else {
             do_the_thing(self, value);
         }
