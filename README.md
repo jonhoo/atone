@@ -59,9 +59,10 @@ the elements are stored in one contiguous chunk of memory. Since it must
 move elements between then without losing their order, it is backed by
 `VecDeque`s, which means that this is the case even after the resize has
 completed. For this reason, this crate presents an interface that
-resembles `VecDeque` more so than `Vec`. If you need contiguous memory,
-there's no good way to do incremental resizing without low-level memory
-mapping magic that I'm aware of.
+resembles `VecDeque` more so than `Vec`. Where possible though, it
+provides `Vec`-like methods. If you need contiguous memory, there's no
+good way to do incremental resizing without low-level memory mapping
+magic that I'm aware of.
 
 ## Benchmarks
 
