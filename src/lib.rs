@@ -600,6 +600,92 @@ impl<T> Vc<T> {
         self.new_tail.is_empty() && self.old_len() == 0
     }
 
+    fn range_start_end<R>(&self, range: R) -> (usize, usize)
+    where
+        R: RangeBounds<usize>,
+    {
+        let len = self.len();
+        let start = match range.start_bound() {
+            Included(&n) => n,
+            Excluded(&n) => n + 1,
+            Unbounded => 0,
+        };
+        let end = match range.end_bound() {
+            Included(&n) => n + 1,
+            Excluded(&n) => n,
+            Unbounded => len,
+        };
+        assert!(start <= end, "lower bound was too large");
+        assert!(end <= len, "upper bound was too large");
+        (start, end)
+    }
+
+    /// Creates an iterator that covers the specified range in the `VecDeque`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the starting point is greater than the end point or if
+    /// the end point is greater than the length of the vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    ///
+    /// let v: Vc<_> = vec![1, 2, 3].into_iter().collect();
+    /// let range = v.range(2..).copied().collect::<Vc<_>>();
+    /// assert_eq!(range, vec![3]);
+    ///
+    /// // A full range covers all contents
+    /// let all = v.range(..);
+    /// assert_eq!(all.len(), 3);
+    /// ```
+    #[inline]
+    // TODO: with https://github.com/rust-lang/rust/pull/74099, this can become iter::Iter<'_, T>,
+    // which would also give us DoubleEndedIterator + FusedIterator.
+    pub fn range<R>(&self, range: R) -> impl ExactSizeIterator<Item = &'_ T>
+    where
+        R: RangeBounds<usize>,
+    {
+        let (start, end) = self.range_start_end(range);
+        self.iter().skip(start).take(end - start)
+    }
+
+    /// Creates an iterator that covers the specified mutable range in the `VecDeque`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the starting point is greater than the end point or if
+    /// the end point is greater than the length of the vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    ///
+    /// let mut v: Vc<_> = vec![1, 2, 3].into_iter().collect();
+    /// for v in v.range_mut(2..) {
+    ///   *v *= 2;
+    /// }
+    /// assert_eq!(v, vec![1, 2, 6]);
+    ///
+    /// // A full range covers all contents
+    /// for v in v.range_mut(..) {
+    ///   *v *= 2;
+    /// }
+    /// assert_eq!(v, vec![2, 4, 12]);
+    /// ```
+    // TODO: with https://github.com/rust-lang/rust/pull/74099, this can become iter::IterMut<'_,
+    // T>, which would also give us DoubleEndedIterator + FusedIterator.
+    #[inline]
+    pub fn range_mut<R>(&mut self, range: R) -> impl ExactSizeIterator<Item = &'_ mut T>
+    where
+        R: RangeBounds<usize>,
+    {
+        let (start, end) = self.range_start_end(range);
+        self.iter_mut().skip(start).take(end - start)
+    }
+
     /// Creates a draining iterator that removes the specified range in the
     /// `Vc` and yields the removed items.
     ///
@@ -642,16 +728,7 @@ impl<T> Vc<T> {
             };
         }
 
-        let start_incl = match range.start_bound() {
-            Unbounded => 0,
-            Included(&i) => i,
-            Excluded(i) => i + 1,
-        };
-        let end_excl = match range.end_bound() {
-            Unbounded => self.len(),
-            Included(i) => i + 1,
-            Excluded(&i) => i,
-        };
+        let (start_incl, end_excl) = self.range_start_end(range);
         debug_assert!(start_incl <= end_excl);
         let head = if start_incl < old_len {
             // TODO: take_old when drained if start_incl == 0 && end_excl >= old_len
