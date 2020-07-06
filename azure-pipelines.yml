@@ -45,7 +45,7 @@ jobs:
            - miri
      - script: cargo miri setup
        displayName: cargo miri setup
-     - script: cargo miri test --features serde -- -Zmiri-ignore-leaks
+     - script: cargo miri test --features serde,rayon -- -Zmiri-ignore-leaks
        displayName: cargo miri test
 
 resources:
