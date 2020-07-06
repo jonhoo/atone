@@ -281,6 +281,51 @@ impl<T> Vc<T> {
         self.new_tail.capacity()
     }
 
+    /// Reserves the minimum capacity for exactly `additional` more elements to be inserted in the
+    /// given `Vc`. Does nothing if the capacity is already sufficient.
+    ///
+    /// Note that the allocator may give the collection more space than it requests. Therefore
+    /// capacity can not be relied upon to be precisely minimal. Prefer [`reserve`] if future
+    /// insertions are expected.
+    ///
+    /// While we try to make this incremental where possible, it may require all-at-once resizing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity overflows `usize`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    ///
+    /// let mut buf: Vc<i32> = vec![1].into_iter().collect();
+    /// buf.reserve_exact(10);
+    /// assert!(buf.capacity() >= 11);
+    /// ```
+    pub fn reserve_exact(&mut self, additional: usize) {
+        // See comments in reserve
+        let need = self.old_len() + additional;
+        if self.new_tail.capacity() - self.new_tail.len() > need {
+            if cfg!(debug_assertions) {
+                let buckets = self.new_tail.capacity();
+                self.new_tail.reserve_exact(need);
+                assert_eq!(
+                    buckets,
+                    self.new_tail.capacity(),
+                    "resize despite sufficient capacity"
+                );
+            } else {
+                self.new_tail.reserve_exact(need);
+            }
+        } else if self.old_len() != 0 {
+            self.carry_all();
+            self.grow(additional, true);
+        } else {
+            self.grow(additional, true);
+        }
+    }
+
     /// Reserves capacity for at least `additional` more elements to be inserted in the given
     /// `Vc`. The collection may reserve more space to avoid frequent reallocations.
     ///
@@ -325,36 +370,36 @@ impl<T> Vc<T> {
             // do an incremental resize. This at least moves only the current leftovers, rather
             // than the current full set of elements.
             self.carry_all();
-            self.grow(additional);
+            self.grow(additional, false);
         } else {
             // We probably have to resize, but since we don't have any leftovers, we can do it
             // incrementally.
-            self.grow(additional);
+            self.grow(additional, false);
         }
     }
 
-    /* TODO: enable this when VecDeque::shrink_to is stable
-    /// Shrinks the capacity of the `VecDeque` as much as possible.
+    /// Shrinks the capacity of the `Vc` as much as possible.
     ///
     /// It will drop down as close as possible to the length but the allocator may still inform the
-    /// `VecDeque` that there is space for a few more elements.
+    /// `Vc` that there is space for a few more elements.
     ///
     /// # Examples
     ///
     /// ```
     /// use atone::Vc;
     ///
-    /// let mut buf = VecDeque::with_capacity(15);
+    /// let mut buf = Vc::with_capacity(15);
     /// buf.extend(0..4);
     /// assert_eq!(buf.capacity(), 15);
     /// buf.shrink_to_fit();
     /// assert!(buf.capacity() >= 4);
+    /// assert!(buf.capacity() < 15);
     /// ```
     pub fn shrink_to_fit(&mut self) {
         self.shrink_to(0);
     }
 
-    /// Shrinks the capacity of the `VecDeque` with a lower bound.
+    /// Shrinks the capacity of the `Vc` with a lower bound.
     ///
     /// The capacity will remain at least as large as both the length
     /// and the supplied value.
@@ -367,32 +412,38 @@ impl<T> Vc<T> {
     /// ```
     /// use atone::Vc;
     ///
-    /// let mut buf = VecDeque::with_capacity(15);
+    /// let mut buf = Vc::with_capacity(15);
     /// buf.extend(0..4);
     /// assert_eq!(buf.capacity(), 15);
-    /// buf.shrink_to(6);
+    /// // buf.shrink_to(6);
     /// assert!(buf.capacity() >= 6);
-    /// buf.shrink_to(0);
+    /// // buf.shrink_to(0);
     /// assert!(buf.capacity() >= 4);
     /// ```
-    pub fn shrink_to(&mut self, min_capacity: usize) {
+    fn shrink_to(&mut self, min_capacity: usize) {
         // Calculate the minimal number of elements that we need to reserve
         // space for.
         let mut need = self.new_tail.len();
         // We need to make sure that we never have to resize while there
         // are still leftovers.
-        if !self.old_head.is_empty() {
+        if self.old_head.is_some() {
+            let old_len = self.old_len();
             // We need to move another lo.table.len() items.
-            need += self.old_head.len();
+            need += old_len;
             // We move R items on each insert.
             // That means we need to accomodate another
             // lo.table.len() / R (rounded up) inserts to move them all.
-            need += (self.old_head.len() + R - 1) / R;
+            need += (old_len + R - 1) / R;
+        } else if min_capacity <= need {
+            self.new_tail.shrink_to_fit();
         }
-        let min_size = usize::max(need, min_capacity);
-        self.new_tail.shrink_to(min_size);
+        let _min_size = usize::max(need, min_capacity);
+
+        // FIXME: for now, this is a no-op
+        // TODO: use VecDeque::shrink_to once available
+        //       then, uncomment relevant code in doctest
+        // self.new_tail.shrink_to(min_size);
     }
-    */
 
     /// Shortens the `Vc`, keeping the first `len` elements and dropping
     /// the rest.
@@ -473,6 +524,47 @@ impl<T> Vc<T> {
         iter::IterMut {
             head: self.old_head.as_mut().map(|v| v.iter_mut()),
             tail: self.new_tail.iter_mut(),
+        }
+    }
+
+    /// Returns the single slice which contains, in order, the contents of the `Vc`, if possible.
+    ///
+    /// You will likely want to call [`make_contiguous`](#method.make_contiguous) before calling
+    /// this method to ensure that this method returns `Some`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    /// let mut vector = Vc::new();
+    ///
+    /// vector.push(0);
+    /// vector.push(1);
+    /// vector.push(2);
+    ///
+    /// assert_eq!(vector.as_single_slice(), Some(&[0, 1, 2][..]));
+    ///
+    /// // Push enough items, and the memory is no longer
+    /// // contiguous due to incremental resizing.
+    /// for i in 3..16 {
+    ///     vector.push(i);
+    /// }
+    ///
+    /// assert_eq!(vector.as_single_slice(), None);
+    ///
+    /// // TODO:
+    /// // With make_contiguous, we can bring it back.
+    /// // vector.make_contiguous();
+    /// // assert_eq!(vector.as_single_slice(), Some(&(0..16).collect::<Vec<_>>()[..]));
+    /// ```
+    #[inline]
+    pub fn as_single_slice(&self) -> Option<&[T]> {
+        if self.old_len() != 0 {
+            None
+        } else if let (tail, []) = self.new_tail.as_slices() {
+            Some(tail)
+        } else {
+            None
         }
     }
 
@@ -802,7 +894,7 @@ impl<T> Vc<T> {
     pub fn push_back(&mut self, value: T) {
         if self.new_tail.capacity() == self.new_tail.len() {
             debug_assert_eq!(self.old_len(), 0);
-            self.grow(1 /* the value we're about to push */);
+            self.grow(1 /* the value we're about to push */, false);
             return self.push_back(value);
         }
 
@@ -1021,7 +1113,7 @@ impl<T> Vc<T> {
             // Also carry some items over.
             self.carry();
         } else if self.new_tail.capacity() == self.new_tail.len() {
-            self.grow(1 /* the value we're about to insert */);
+            self.grow(1 /* the value we're about to insert */, false);
             return self.insert(index, value);
         } else {
             do_the_thing(self, value);
@@ -1142,7 +1234,7 @@ impl<T> Vc<T> {
 
     // This may panic or abort
     #[inline(never)]
-    fn grow(&mut self, extra: usize) {
+    fn grow(&mut self, extra: usize, exact: bool) {
         debug_assert_eq!(self.old_len(), 0);
 
         // We need to grow the Vec by at least a factor of (R + 1)/R to ensure that
@@ -1165,7 +1257,13 @@ impl<T> Vc<T> {
         // We also need to make sure we can fit the additional capacity required for `extra`.
         // Normally, that'll be handled by `pushes`, but not always!
         let add = usize::max(extra, pushes);
-        let new_tail = VecDeque::with_capacity(need + pushes + add);
+        let new_tail = if exact {
+            let mut v = VecDeque::with_capacity(0);
+            v.reserve_exact(need + pushes + add);
+            v
+        } else {
+            VecDeque::with_capacity(need + pushes + add)
+        };
         self.old_head = Some(mem::replace(&mut self.new_tail, new_tail));
     }
 
