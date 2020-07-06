@@ -198,7 +198,7 @@ mod tests {
         atoner.push(3);
         atoner.push(4);
         let json = serde_json::to_string(&atoner).unwrap();
-        let baptized: Vc<u32> = serde_json::from_str(&json).unwrap();
+        let baptized: alloc::vec::Vec<u32> = serde_json::from_str(&json).unwrap();
         for (a, b) in atoner.iter().zip(baptized.iter()) {
             assert!(
                 a == b,
