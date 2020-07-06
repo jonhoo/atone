@@ -269,6 +269,8 @@ impl<T> Vc<T> {
 
     /// Reverses the order of elements in the `Vc`, in place.
     ///
+    /// This method is only available on nightly compilers at the moment.
+    ///
     /// # Examples
     ///
     /// ```
@@ -1424,6 +1426,8 @@ impl<T> Vc<T> {
     /// As it returns a mutable slice, this can be used to sort or binary search a deque.
     ///
     /// This method will also move over leftover items from the last resize, if any.
+    ///
+    /// This method is only available on nightly compilers at the moment.
     ///
     /// # Examples
     ///
