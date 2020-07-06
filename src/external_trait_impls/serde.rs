@@ -6,6 +6,34 @@ use serde_::ser::{Serialize, Serializer};
 
 use crate::Vc;
 
+/// Helpers picked from the serde repository https://github.com/serde-rs/serde.
+mod helper {
+
+    use serde_::de::{Deserialize, DeserializeSeed, Deserializer};
+
+    /// https://github.com/serde-rs/serde/blob/9f331cc25753edd71ad7ab0ea08a430fefaa90e1/serde/src/private/de.rs#L203
+    #[inline]
+    pub(super) fn cautious_size_hint(hint: Option<usize>) -> usize {
+        core::cmp::min(hint.unwrap_or(0), 4096)
+    }
+
+    /// https://github.com/serde-rs/serde/blob/24e6acbfaeb18af978012b904209632f012eb54d/serde/src/private/de.rs#L2634-L2650
+    pub(super) struct InPlaceSeed<'a, T>(pub &'a mut T);
+
+    impl<'a, 'de, T> DeserializeSeed<'de> for InPlaceSeed<'a, T>
+    where
+        T: Deserialize<'de>,
+    {
+        type Value = ();
+        fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            T::deserialize_in_place(deserializer, self.0)
+        }
+    }
+}
+
 impl<T> Serialize for Vc<T>
 where
     T: Serialize,
@@ -16,12 +44,6 @@ where
     {
         serializer.collect_seq(self)
     }
-}
-
-/// Picked from https://github.com/serde-rs/serde/blob/9f331cc25753edd71ad7ab0ea08a430fefaa90e1/serde/src/private/de.rs#L203
-#[inline]
-fn cautious_size_hint(hint: Option<usize>) -> usize {
-    core::cmp::min(hint.unwrap_or(0), 4096)
 }
 
 impl<'de, T> Deserialize<'de> for Vc<T>
@@ -47,7 +69,7 @@ where
             where
                 A: SeqAccess<'de>,
             {
-                let mut values = Vc::with_capacity(cautious_size_hint(seq.size_hint()));
+                let mut values = Vc::with_capacity(helper::cautious_size_hint(seq.size_hint()));
                 while let Some(value) = seq.next_element()? {
                     values.push(value);
                 }
