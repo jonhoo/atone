@@ -29,10 +29,19 @@ fn size_hint(
 ///
 /// [`iter`]: struct.Vc.html#method.iter
 /// [`Vc`]: struct.Vc.html
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Iter<'a, T> {
     pub(super) head: Option<vec_deque::Iter<'a, T>>,
     pub(super) tail: vec_deque::Iter<'a, T>,
+}
+
+impl<'a, T> Clone for Iter<'a, T> {
+    fn clone(&self) -> Self {
+        Self {
+            head: self.head.clone(),
+            tail: self.tail.clone(),
+        }
+    }
 }
 
 macro_rules! _impl {
