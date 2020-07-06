@@ -12,12 +12,19 @@ repository = "https://github.com/jonhoo/atone.git"
 keywords = ["vec", "no_std", "vecdeque", "amortized"]
 categories = ["data-structures", "no-std"]
 
+build = "build.rs"
+
 [badges]
 azure-devops = { project = "jonhoo/jonhoo", pipeline = "atone", build = "28" }
 codecov = { repository = "jonhoo/atone", branch = "master", service = "github" }
 maintenance = { status = "experimental" }
 
 [dependencies]
+
+[build-dependencies]
+# TODO: replace with https://github.com/rust-lang/rust/issues/64797
+#       or remove when necessary features stabilize
+rustversion = "1.0.3"
 
 [dev-dependencies]
 rand = { version = "0.7.3", features = ["small_rng"] }

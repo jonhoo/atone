@@ -55,6 +55,7 @@
 #![warn(missing_docs)]
 #![warn(rust_2018_idioms)]
 #![warn(rustdoc)]
+#![cfg_attr(is_nightly, feature(deque_make_contiguous))]
 
 #[cfg(any(test, miri))]
 pub(crate) const R: usize = 4;
@@ -265,6 +266,32 @@ impl<T> Vc<T> {
         }
     }
 
+    /// Reverses the order of elements in the `Vc`, in place.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    /// use std::iter::FromIterator;
+    ///
+    /// let mut v: Vc<_> = (1..=3).collect();
+    /// v.reverse();
+    /// assert_eq!(v, vec![3, 2, 1]);
+    /// ```
+    #[inline]
+    #[cfg(is_nightly)]
+    pub fn reverse(&mut self) {
+        // first, we reverse the tail in place
+        self.new_tail.make_contiguous().reverse();
+        // then, we push_back (instead of push_front) the head in reverse order
+        if let Some(ref mut old_head) = self.old_head {
+            while let Some(e) = old_head.pop_back() {
+                self.new_tail.push_back(e);
+            }
+            let _ = self.take_old();
+        }
+    }
+
     /// Returns the number of elements the `Vc` can hold without
     /// reallocating.
     ///
@@ -279,6 +306,51 @@ impl<T> Vc<T> {
     #[inline]
     pub fn capacity(&self) -> usize {
         self.new_tail.capacity()
+    }
+
+    /// Reserves the minimum capacity for exactly `additional` more elements to be inserted in the
+    /// given `Vc`. Does nothing if the capacity is already sufficient.
+    ///
+    /// Note that the allocator may give the collection more space than it requests. Therefore
+    /// capacity can not be relied upon to be precisely minimal. Prefer [`reserve`] if future
+    /// insertions are expected.
+    ///
+    /// While we try to make this incremental where possible, it may require all-at-once resizing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity overflows `usize`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    ///
+    /// let mut buf: Vc<i32> = vec![1].into_iter().collect();
+    /// buf.reserve_exact(10);
+    /// assert!(buf.capacity() >= 11);
+    /// ```
+    pub fn reserve_exact(&mut self, additional: usize) {
+        // See comments in reserve
+        let need = self.old_len() + additional;
+        if self.new_tail.capacity() - self.new_tail.len() > need {
+            if cfg!(debug_assertions) {
+                let buckets = self.new_tail.capacity();
+                self.new_tail.reserve_exact(need);
+                assert_eq!(
+                    buckets,
+                    self.new_tail.capacity(),
+                    "resize despite sufficient capacity"
+                );
+            } else {
+                self.new_tail.reserve_exact(need);
+            }
+        } else if self.old_len() != 0 {
+            self.carry_all();
+            self.grow(additional, true);
+        } else {
+            self.grow(additional, true);
+        }
     }
 
     /// Reserves capacity for at least `additional` more elements to be inserted in the given
@@ -325,36 +397,36 @@ impl<T> Vc<T> {
             // do an incremental resize. This at least moves only the current leftovers, rather
             // than the current full set of elements.
             self.carry_all();
-            self.grow(additional);
+            self.grow(additional, false);
         } else {
             // We probably have to resize, but since we don't have any leftovers, we can do it
             // incrementally.
-            self.grow(additional);
+            self.grow(additional, false);
         }
     }
 
-    /* TODO: enable this when VecDeque::shrink_to is stable
-    /// Shrinks the capacity of the `VecDeque` as much as possible.
+    /// Shrinks the capacity of the `Vc` as much as possible.
     ///
     /// It will drop down as close as possible to the length but the allocator may still inform the
-    /// `VecDeque` that there is space for a few more elements.
+    /// `Vc` that there is space for a few more elements.
     ///
     /// # Examples
     ///
     /// ```
     /// use atone::Vc;
     ///
-    /// let mut buf = VecDeque::with_capacity(15);
+    /// let mut buf = Vc::with_capacity(15);
     /// buf.extend(0..4);
     /// assert_eq!(buf.capacity(), 15);
     /// buf.shrink_to_fit();
     /// assert!(buf.capacity() >= 4);
+    /// assert!(buf.capacity() < 15);
     /// ```
     pub fn shrink_to_fit(&mut self) {
         self.shrink_to(0);
     }
 
-    /// Shrinks the capacity of the `VecDeque` with a lower bound.
+    /// Shrinks the capacity of the `Vc` with a lower bound.
     ///
     /// The capacity will remain at least as large as both the length
     /// and the supplied value.
@@ -367,32 +439,38 @@ impl<T> Vc<T> {
     /// ```
     /// use atone::Vc;
     ///
-    /// let mut buf = VecDeque::with_capacity(15);
+    /// let mut buf = Vc::with_capacity(15);
     /// buf.extend(0..4);
     /// assert_eq!(buf.capacity(), 15);
-    /// buf.shrink_to(6);
+    /// // buf.shrink_to(6);
     /// assert!(buf.capacity() >= 6);
-    /// buf.shrink_to(0);
+    /// // buf.shrink_to(0);
     /// assert!(buf.capacity() >= 4);
     /// ```
-    pub fn shrink_to(&mut self, min_capacity: usize) {
+    fn shrink_to(&mut self, min_capacity: usize) {
         // Calculate the minimal number of elements that we need to reserve
         // space for.
         let mut need = self.new_tail.len();
         // We need to make sure that we never have to resize while there
         // are still leftovers.
-        if !self.old_head.is_empty() {
+        if self.old_head.is_some() {
+            let old_len = self.old_len();
             // We need to move another lo.table.len() items.
-            need += self.old_head.len();
+            need += old_len;
             // We move R items on each insert.
             // That means we need to accomodate another
             // lo.table.len() / R (rounded up) inserts to move them all.
-            need += (self.old_head.len() + R - 1) / R;
+            need += (old_len + R - 1) / R;
+        } else if min_capacity <= need {
+            self.new_tail.shrink_to_fit();
         }
-        let min_size = usize::max(need, min_capacity);
-        self.new_tail.shrink_to(min_size);
+        let _min_size = usize::max(need, min_capacity);
+
+        // FIXME: for now, this is a no-op
+        // TODO: use VecDeque::shrink_to once available
+        //       then, uncomment relevant code in doctest
+        // self.new_tail.shrink_to(min_size);
     }
-    */
 
     /// Shortens the `Vc`, keeping the first `len` elements and dropping
     /// the rest.
@@ -476,6 +554,47 @@ impl<T> Vc<T> {
         }
     }
 
+    /// Returns the single slice which contains, in order, the contents of the `Vc`, if possible.
+    ///
+    /// You will likely want to call [`make_contiguous`](#method.make_contiguous) before calling
+    /// this method to ensure that this method returns `Some`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    /// let mut vector = Vc::new();
+    ///
+    /// vector.push(0);
+    /// vector.push(1);
+    /// vector.push(2);
+    ///
+    /// assert_eq!(vector.as_single_slice(), Some(&[0, 1, 2][..]));
+    ///
+    /// // Push enough items, and the memory is no longer
+    /// // contiguous due to incremental resizing.
+    /// for i in 3..16 {
+    ///     vector.push(i);
+    /// }
+    ///
+    /// assert_eq!(vector.as_single_slice(), None);
+    ///
+    /// // TODO:
+    /// // With make_contiguous, we can bring it back.
+    /// // vector.make_contiguous();
+    /// // assert_eq!(vector.as_single_slice(), Some(&(0..16).collect::<Vec<_>>()[..]));
+    /// ```
+    #[inline]
+    pub fn as_single_slice(&self) -> Option<&[T]> {
+        if self.old_len() != 0 {
+            None
+        } else if let (tail, []) = self.new_tail.as_slices() {
+            Some(tail)
+        } else {
+            None
+        }
+    }
+
     /// Returns the number of elements in the `Vc`.
     ///
     /// # Examples
@@ -506,6 +625,92 @@ impl<T> Vc<T> {
     /// ```
     pub fn is_empty(&self) -> bool {
         self.new_tail.is_empty() && self.old_len() == 0
+    }
+
+    fn range_start_end<R>(&self, range: R) -> (usize, usize)
+    where
+        R: RangeBounds<usize>,
+    {
+        let len = self.len();
+        let start = match range.start_bound() {
+            Included(&n) => n,
+            Excluded(&n) => n + 1,
+            Unbounded => 0,
+        };
+        let end = match range.end_bound() {
+            Included(&n) => n + 1,
+            Excluded(&n) => n,
+            Unbounded => len,
+        };
+        assert!(start <= end, "lower bound was too large");
+        assert!(end <= len, "upper bound was too large");
+        (start, end)
+    }
+
+    /// Creates an iterator that covers the specified range in the `VecDeque`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the starting point is greater than the end point or if
+    /// the end point is greater than the length of the vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    ///
+    /// let v: Vc<_> = vec![1, 2, 3].into_iter().collect();
+    /// let range = v.range(2..).copied().collect::<Vc<_>>();
+    /// assert_eq!(range, vec![3]);
+    ///
+    /// // A full range covers all contents
+    /// let all = v.range(..);
+    /// assert_eq!(all.len(), 3);
+    /// ```
+    #[inline]
+    // TODO: with https://github.com/rust-lang/rust/pull/74099, this can become iter::Iter<'_, T>,
+    // which would also give us DoubleEndedIterator + FusedIterator.
+    pub fn range<R>(&self, range: R) -> impl ExactSizeIterator<Item = &'_ T>
+    where
+        R: RangeBounds<usize>,
+    {
+        let (start, end) = self.range_start_end(range);
+        self.iter().skip(start).take(end - start)
+    }
+
+    /// Creates an iterator that covers the specified mutable range in the `VecDeque`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the starting point is greater than the end point or if
+    /// the end point is greater than the length of the vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    ///
+    /// let mut v: Vc<_> = vec![1, 2, 3].into_iter().collect();
+    /// for v in v.range_mut(2..) {
+    ///   *v *= 2;
+    /// }
+    /// assert_eq!(v, vec![1, 2, 6]);
+    ///
+    /// // A full range covers all contents
+    /// for v in v.range_mut(..) {
+    ///   *v *= 2;
+    /// }
+    /// assert_eq!(v, vec![2, 4, 12]);
+    /// ```
+    // TODO: with https://github.com/rust-lang/rust/pull/74099, this can become iter::IterMut<'_,
+    // T>, which would also give us DoubleEndedIterator + FusedIterator.
+    #[inline]
+    pub fn range_mut<R>(&mut self, range: R) -> impl ExactSizeIterator<Item = &'_ mut T>
+    where
+        R: RangeBounds<usize>,
+    {
+        let (start, end) = self.range_start_end(range);
+        self.iter_mut().skip(start).take(end - start)
     }
 
     /// Creates a draining iterator that removes the specified range in the
@@ -550,16 +755,7 @@ impl<T> Vc<T> {
             };
         }
 
-        let start_incl = match range.start_bound() {
-            Unbounded => 0,
-            Included(&i) => i,
-            Excluded(i) => i + 1,
-        };
-        let end_excl = match range.end_bound() {
-            Unbounded => self.len(),
-            Included(i) => i + 1,
-            Excluded(&i) => i,
-        };
+        let (start_incl, end_excl) = self.range_start_end(range);
         debug_assert!(start_incl <= end_excl);
         let head = if start_incl < old_len {
             // TODO: take_old when drained if start_incl == 0 && end_excl >= old_len
@@ -802,7 +998,7 @@ impl<T> Vc<T> {
     pub fn push_back(&mut self, value: T) {
         if self.new_tail.capacity() == self.new_tail.len() {
             debug_assert_eq!(self.old_len(), 0);
-            self.grow(1 /* the value we're about to push */);
+            self.grow(1 /* the value we're about to push */, false);
             return self.push_back(value);
         }
 
@@ -1021,8 +1217,8 @@ impl<T> Vc<T> {
             // Also carry some items over.
             self.carry();
         } else if self.new_tail.capacity() == self.new_tail.len() {
-            self.grow(1 /* the value we're about to insert */);
-            return self.insert(index, value);
+            self.grow(1 /* the value we're about to insert */, false);
+            self.insert(index, value)
         } else {
             do_the_thing(self, value);
         }
@@ -1031,9 +1227,10 @@ impl<T> Vc<T> {
     /// Removes and returns the element at `index` from the `Vc`.
     /// Whichever end is closer to the removal point will be moved to make
     /// room, and all the affected elements will be moved to new positions.
-    /// Returns `None` if `index` is out of bounds.
     ///
-    /// Element at index 0 is the front of the queue.
+    /// # Panics
+    ///
+    /// Panics if `index` is out of bounds.
     ///
     /// # Examples
     ///
@@ -1046,22 +1243,30 @@ impl<T> Vc<T> {
     /// buf.push_back(3);
     /// assert_eq!(buf, vec![1, 2, 3]);
     ///
-    /// assert_eq!(buf.remove(1), Some(2));
+    /// assert_eq!(buf.remove(1), 2);
     /// assert_eq!(buf, vec![1, 3]);
     /// ```
-    pub fn remove(&mut self, index: usize) -> Option<T> {
+    pub fn remove(&mut self, index: usize) -> T {
+        #[cold]
+        #[inline(never)]
+        fn assert_failed(index: usize, len: usize) -> ! {
+            panic!("removal index (is {}) should be < len (is {})", index, len);
+        }
+
         let old_len = self.old_len();
         if index < old_len {
             // index < old_len implies old_len > 0 and index in-bounds
             unsafe {
-                let v = self.old_mut().remove(index)?;
+                let v = self.old_mut().remove(index);
                 if self.old_ref().is_empty() {
                     let _ = self.take_old_unchecked();
                 }
-                Some(v)
+                v.unwrap_or_else(|| assert_failed(index, self.len()))
             }
         } else {
-            self.new_tail.remove(index - old_len)
+            self.new_tail
+                .remove(index - old_len)
+                .unwrap_or_else(|| assert_failed(index, self.len()))
         }
     }
 
@@ -1142,7 +1347,7 @@ impl<T> Vc<T> {
 
     // This may panic or abort
     #[inline(never)]
-    fn grow(&mut self, extra: usize) {
+    fn grow(&mut self, extra: usize, exact: bool) {
         debug_assert_eq!(self.old_len(), 0);
 
         // We need to grow the Vec by at least a factor of (R + 1)/R to ensure that
@@ -1165,7 +1370,13 @@ impl<T> Vc<T> {
         // We also need to make sure we can fit the additional capacity required for `extra`.
         // Normally, that'll be handled by `pushes`, but not always!
         let add = usize::max(extra, pushes);
-        let new_tail = VecDeque::with_capacity(need + pushes + add);
+        let new_tail = if exact {
+            let mut v = VecDeque::with_capacity(0);
+            v.reserve_exact(need + pushes + add);
+            v
+        } else {
+            VecDeque::with_capacity(need + pushes + add)
+        };
         self.old_head = Some(mem::replace(&mut self.new_tail, new_tail));
     }
 
@@ -1202,6 +1413,62 @@ impl<T> Vc<T> {
         } else {
             self.truncate(new_len);
         }
+    }
+
+    /// Rearranges the internal storage so that all elements are in one contiguous slice,
+    /// which is then returned.
+    ///
+    /// This method does not allocate and does not change the order of the inserted elements.
+    /// As it returns a mutable slice, this can be used to sort or binary search a deque.
+    ///
+    /// This method will also move over leftover items from the last resize, if any.
+    ///
+    /// # Examples
+    ///
+    /// Sorting the content of a deque.
+    ///
+    /// ```
+    /// use atone::Vc;
+    ///
+    /// let mut buf = Vc::with_capacity(3);
+    /// for i in 1..=16 {
+    ///     buf.push(16 - i);
+    /// }
+    ///
+    /// // The backing memory of buf is now split,
+    /// // since some items are left over after the resize.
+    /// // To sort the list, we make it contiguous, and then sort.
+    /// buf.make_contiguous().sort();
+    /// assert_eq!(buf, (0..16).collect::<Vec<_>>());
+    ///
+    /// // Similarly, we can sort it in reverse order.
+    /// buf.make_contiguous().sort_by(|a, b| b.cmp(a));
+    /// assert_eq!(buf, (1..=16).map(|i| 16 - i).collect::<Vec<_>>());
+    /// ```
+    ///
+    /// Getting immutable access to the contiguous slice.
+    ///
+    /// ```rust
+    /// use atone::Vc;
+    /// let mut buf = Vc::new();
+    /// for i in 1..=3 {
+    ///     buf.push(i);
+    /// }
+    ///
+    /// buf.make_contiguous();
+    /// if let Some(slice) = buf.as_single_slice() {
+    ///     // we can now be sure that `slice` contains all elements of the deque,
+    ///     // while still having immutable access to `buf`.
+    ///     assert_eq!(buf.len(), slice.len());
+    ///     assert_eq!(slice, &[1, 2, 3] as &[_]);
+    /// }
+    /// ```
+    #[cfg(is_nightly)]
+    pub fn make_contiguous(&mut self) -> &mut [T] {
+        if self.old_len() != 0 {
+            self.carry_all();
+        }
+        self.new_tail.make_contiguous()
     }
 }
 
@@ -1692,7 +1959,7 @@ mod tests {
             for i in 0..50 {
                 let v = vs.remove(0);
 
-                assert_eq!(v.as_ref().map(|v| v.k), Some(i));
+                assert_eq!(v.k, i);
 
                 DROP_VECTOR.with(|v| {
                     assert_eq!(v.borrow()[i], 1);
@@ -1775,9 +2042,10 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_empty_remove() {
         let mut vs: Vc<i32> = Vc::new();
-        assert_eq!(vs.remove(0), None);
+        vs.remove(0);
     }
 
     #[test]
@@ -1829,7 +2097,7 @@ mod tests {
 
         // remove forwards
         for i in 1..M {
-            assert_eq!(vs.remove(0), Some(i));
+            assert_eq!(vs.remove(0), i);
 
             for j in 1..=i {
                 assert!(!vs.contains(&j));
@@ -1868,7 +2136,7 @@ mod tests {
         let mut vs = Vc::with_capacity(4);
         vs.push(1);
         assert!(!vs.is_empty());
-        assert!(vs.remove(0).is_some());
+        vs.remove(0);
         assert!(vs.is_empty());
     }
 
