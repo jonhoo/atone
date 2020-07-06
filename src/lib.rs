@@ -55,6 +55,7 @@
 #![warn(missing_docs)]
 #![warn(rust_2018_idioms)]
 #![warn(rustdoc)]
+#![cfg_attr(is_nightly, feature(deque_make_contiguous))]
 
 #[cfg(any(test, miri))]
 pub(crate) const R: usize = 4;
@@ -262,6 +263,32 @@ impl<T> Vc<T> {
                 .as_mut()
                 .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
             mem::swap(&mut old_mut[j], &mut self.new_tail[i - old_len])
+        }
+    }
+
+    /// Reverses the order of elements in the `Vc`, in place.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    /// use std::iter::FromIterator;
+    ///
+    /// let mut v: Vc<_> = (1..=3).collect();
+    /// v.reverse();
+    /// assert_eq!(v, vec![3, 2, 1]);
+    /// ```
+    #[inline]
+    #[cfg(is_nightly)]
+    pub fn reverse(&mut self) {
+        // first, we reverse the tail in place
+        self.new_tail.make_contiguous().reverse();
+        // then, we push_back (instead of push_front) the head in reverse order
+        if let Some(ref mut old_head) = self.old_head {
+            while let Some(e) = old_head.pop_back() {
+                self.new_tail.push_back(e);
+            }
+            let _ = self.take_old();
         }
     }
 
@@ -1386,6 +1413,62 @@ impl<T> Vc<T> {
         } else {
             self.truncate(new_len);
         }
+    }
+
+    /// Rearranges the internal storage so that all elements are in one contiguous slice,
+    /// which is then returned.
+    ///
+    /// This method does not allocate and does not change the order of the inserted elements.
+    /// As it returns a mutable slice, this can be used to sort or binary search a deque.
+    ///
+    /// This method will also move over leftover items from the last resize, if any.
+    ///
+    /// # Examples
+    ///
+    /// Sorting the content of a deque.
+    ///
+    /// ```
+    /// use atone::Vc;
+    ///
+    /// let mut buf = Vc::with_capacity(3);
+    /// for i in 1..=16 {
+    ///     buf.push(16 - i);
+    /// }
+    ///
+    /// // The backing memory of buf is now split,
+    /// // since some items are left over after the resize.
+    /// // To sort the list, we make it contiguous, and then sort.
+    /// buf.make_contiguous().sort();
+    /// assert_eq!(buf, (0..16).collect::<Vec<_>>());
+    ///
+    /// // Similarly, we can sort it in reverse order.
+    /// buf.make_contiguous().sort_by(|a, b| b.cmp(a));
+    /// assert_eq!(buf, (1..=16).map(|i| 16 - i).collect::<Vec<_>>());
+    /// ```
+    ///
+    /// Getting immutable access to the contiguous slice.
+    ///
+    /// ```rust
+    /// use atone::Vc;
+    /// let mut buf = Vc::new();
+    /// for i in 1..=3 {
+    ///     buf.push(i);
+    /// }
+    ///
+    /// buf.make_contiguous();
+    /// if let Some(slice) = buf.as_single_slice() {
+    ///     // we can now be sure that `slice` contains all elements of the deque,
+    ///     // while still having immutable access to `buf`.
+    ///     assert_eq!(buf.len(), slice.len());
+    ///     assert_eq!(slice, &[1, 2, 3] as &[_]);
+    /// }
+    /// ```
+    #[cfg(is_nightly)]
+    pub fn make_contiguous(&mut self) -> &mut [T] {
+        if self.old_len() != 0 {
+            self.carry_all();
+        }
+        self.new_tail.make_contiguous()
     }
 }
 
