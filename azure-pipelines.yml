@@ -1,7 +1,7 @@
 jobs:
  - template: default.yml@templates
    parameters:
-     minrust: 1.41.0 # relaxed coherence rules
+     minrust: 1.48.0 # VecDeque::make_contiguous
      codecov_token: $(CODECOV_TOKEN_SECRET)
      env:
        QUICKCHECK_TESTS: 500

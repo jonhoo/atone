@@ -55,7 +55,6 @@
 #![warn(missing_docs)]
 #![warn(rust_2018_idioms)]
 #![warn(rustdoc)]
-#![cfg_attr(is_nightly, feature(deque_make_contiguous))]
 
 #[cfg(any(test, miri))]
 pub(crate) const R: usize = 4;
@@ -269,8 +268,6 @@ impl<T> Vc<T> {
 
     /// Reverses the order of elements in the `Vc`, in place.
     ///
-    /// This method is only available on nightly compilers at the moment.
-    ///
     /// # Examples
     ///
     /// ```
@@ -282,7 +279,6 @@ impl<T> Vc<T> {
     /// assert_eq!(v, vec![3, 2, 1]);
     /// ```
     #[inline]
-    #[cfg(is_nightly)]
     pub fn reverse(&mut self) {
         // first, we reverse the tail in place
         self.new_tail.make_contiguous().reverse();
@@ -582,10 +578,8 @@ impl<T> Vc<T> {
     ///
     /// assert_eq!(vector.as_single_slice(), None);
     ///
-    /// // TODO:
-    /// // With make_contiguous, we can bring it back.
-    /// // vector.make_contiguous();
-    /// // assert_eq!(vector.as_single_slice(), Some(&(0..16).collect::<Vec<_>>()[..]));
+    /// vector.make_contiguous();
+    /// assert_eq!(vector.as_single_slice(), Some(&(0..16).collect::<Vec<_>>()[..]));
     /// ```
     #[inline]
     pub fn as_single_slice(&self) -> Option<&[T]> {
@@ -1427,8 +1421,6 @@ impl<T> Vc<T> {
     ///
     /// This method will also move over leftover items from the last resize, if any.
     ///
-    /// This method is only available on nightly compilers at the moment.
-    ///
     /// # Examples
     ///
     /// Sorting the content of a deque.
@@ -1469,7 +1461,6 @@ impl<T> Vc<T> {
     ///     assert_eq!(slice, &[1, 2, 3] as &[_]);
     /// }
     /// ```
-    #[cfg(is_nightly)]
     pub fn make_contiguous(&mut self) -> &mut [T] {
         if self.old_len() != 0 {
             self.carry_all();
