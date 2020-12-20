@@ -1268,6 +1268,56 @@ impl<T> Vc<T> {
         }
     }
 
+    /// Splits the `Vc` into two at the given index.
+    ///
+    /// Returns a newly allocated `Vc`. `self` contains elements `[0, at)`,
+    /// and the returned `Vc` contains elements `[at, len)`.
+    ///
+    /// Note that the capacity of `self` does not change.
+    ///
+    /// Element at index 0 is the front of the queue.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `at > len`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    ///
+    /// let mut buf: Vc<_> = vec![1,2,3].into_iter().collect();
+    /// let buf2 = buf.split_off(1);
+    /// assert_eq!(buf, vec![1]);
+    /// assert_eq!(buf2, vec![2, 3]);
+    /// ```
+    #[inline]
+    #[must_use = "use `.truncate()` if you don't need the other half"]
+    pub fn split_off(&mut self, at: usize) -> Self {
+        let old_len = self.old_len();
+        if at < old_len {
+            // index < old_len implies old_len > 0 and index in-bounds
+            // if we're splitting inside the old head, then we can make new be the VecDeque
+            // we're going to return.
+            let mut keep = self.old_head.take().unwrap();
+            // we have to make sure that old[at..] ends up in the Vc we return.
+            // but we already have a mechanism for doing so -- old_head!
+            let tail_of_old = keep.split_off(at);
+            let give_away = mem::replace(&mut self.new_tail, keep);
+            Vc {
+                new_tail: give_away,
+                old_head: Some(tail_of_old),
+            }
+        } else {
+            // we're splitting off from the tail, which means we're going to keep the old head.
+            let give_away = self.new_tail.split_off(at);
+            Vc {
+                new_tail: give_away,
+                old_head: None,
+            }
+        }
+    }
+
     /// Moves all the elements of `other` into `self`, leaving `other` empty.
     ///
     /// # Panics
