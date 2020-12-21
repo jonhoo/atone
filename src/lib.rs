@@ -152,6 +152,102 @@ impl<T> Vc<T> {
         }
     }
 
+    /// Returns the first element of the `Vc`, or `None` if it is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    ///
+    /// let mut v = Vc::new();
+    /// v.push_back(10);
+    /// v.push_back(40);
+    /// v.push_back(30);
+    /// assert_eq!(Some(&10), v.first());
+    ///
+    /// v.clear();
+    /// assert_eq!(None, v.first());
+    /// ```
+    #[inline]
+    pub fn first(&self) -> Option<&T> {
+        self.get(0)
+    }
+
+    /// Returns a mutable pointer to the first element of the `Vc`, or `None` if it is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    ///
+    /// let mut x = Vc::new();
+    /// x.push_back(0);
+    /// x.push_back(1);
+    /// x.push_back(2);
+    ///
+    /// if let Some(last) = x.first_mut() {
+    ///     *last = 5;
+    /// }
+    /// assert_eq!(x, vec![5, 1, 2]);
+    /// ```
+    #[inline]
+    pub fn first_mut(&mut self) -> Option<&mut T> {
+        self.get_mut(0)
+    }
+
+    /// Returns the last element of the `Vc`, or `None` if it is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    ///
+    /// let mut v = Vc::new();
+    /// v.push_back(10);
+    /// v.push_back(40);
+    /// v.push_back(30);
+    /// assert_eq!(Some(&30), v.last());
+    ///
+    /// v.clear();
+    /// assert_eq!(None, v.last());
+    /// ```
+    #[inline]
+    pub fn last(&self) -> Option<&T> {
+        let len = self.len();
+        if len == 0 {
+            None
+        } else {
+            Some(self.get(len - 1).unwrap())
+        }
+    }
+
+    /// Returns a mutable pointer to the last item in the `Vc`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    ///
+    /// let mut x = Vc::new();
+    /// x.push_back(0);
+    /// x.push_back(1);
+    /// x.push_back(2);
+    ///
+    /// if let Some(last) = x.last_mut() {
+    ///     *last = 10;
+    /// }
+    /// assert_eq!(x, vec![0, 1, 10]);
+    /// ```
+    #[inline]
+    pub fn last_mut(&mut self) -> Option<&mut T> {
+        let len = self.len();
+        if len == 0 {
+            None
+        } else {
+            Some(self.get_mut(len - 1).unwrap())
+        }
+    }
+
     /// Provides a reference to the element at the given index.
     ///
     /// Element at index 0 is the front of the queue.
