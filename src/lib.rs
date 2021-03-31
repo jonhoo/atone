@@ -1318,6 +1318,31 @@ impl<T> Vc<T> {
         }
     }
 
+    /// Inserts an element at the front of the queue, shifting all elements with indices
+    /// greater than or equal to `index` towards the back.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index` is greater than `Vc`'s length
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use atone::Vc;
+    ///
+    /// let mut vec_deque = Vc::new();
+    /// vec_deque.push_front('a');
+    /// vec_deque.push_front('b');
+    /// vec_deque.push_front('c');
+    /// assert_eq!(vec_deque, vec!['c', 'b', 'a']);
+    ///
+    /// vec_deque.insert(1, 'd');
+    /// assert_eq!(vec_deque, vec!['c', 'd', 'b', 'a']);
+    /// ```
+    pub fn push_front(&mut self, value: T) {
+        self.insert(0, value);
+    }
+
     /// Removes and returns the element at `index` from the `Vc`.
     /// Whichever end is closer to the removal point will be moved to make
     /// room, and all the affected elements will be moved to new positions.
