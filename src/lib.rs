@@ -129,7 +129,7 @@ impl<T> Vc<T> {
     ///
     /// let vector: Vc<u32> = Vc::new();
     /// ```
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             new_tail: VecDeque::new(),
             old_head: None,

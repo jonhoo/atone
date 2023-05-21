@@ -1,7 +1,7 @@
 jobs:
  - template: default.yml@templates
    parameters:
-     minrust: 1.68.2 # const VecDeque::new
+     minrust: 1.52.1 # deque_range
      codecov_token: $(CODECOV_TOKEN_SECRET)
      env:
        QUICKCHECK_TESTS: 500
