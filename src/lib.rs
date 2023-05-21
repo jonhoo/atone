@@ -54,7 +54,7 @@
 #![no_std]
 #![warn(missing_docs)]
 #![warn(rust_2018_idioms)]
-#![warn(rustdoc)]
+#![warn(rustdoc::all)]
 
 #[cfg(any(test, miri))]
 pub(crate) const R: usize = 4;
