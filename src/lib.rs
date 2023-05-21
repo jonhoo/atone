@@ -720,6 +720,7 @@ impl<T> Vc<T> {
         self.new_tail.is_empty() && self.old_len() == 0
     }
 
+    #[inline]
     fn range_start_end<R>(&self, range: R) -> (usize, usize)
     where
         R: RangeBounds<usize>,
@@ -738,6 +739,39 @@ impl<T> Vc<T> {
         assert!(start <= end, "lower bound was too large");
         assert!(end <= len, "upper bound was too large");
         (start, end)
+    }
+
+    #[inline]
+    fn range_start_end_split<R>(&self, range: R) -> (Option<(usize, usize)>, Option<(usize, usize)>)
+    where
+        R: RangeBounds<usize>,
+    {
+        let (start_incl, end_excl) = self.range_start_end(range);
+
+        let old_len = self.old_len();
+        if old_len == 0 {
+            return (None, Some((start_incl, end_excl)));
+        }
+
+        debug_assert!(start_incl <= end_excl);
+        let head = if start_incl < old_len {
+            debug_assert!(self.old_head.is_some());
+            Some((start_incl, end_excl.min(old_len)))
+        } else {
+            None
+        };
+
+        let tail = if end_excl > old_len {
+            if start_incl > old_len {
+                Some((start_incl - old_len, end_excl - old_len))
+            } else {
+                Some((0, (end_excl - old_len)))
+            }
+        } else {
+            None
+        };
+
+        (head, tail)
     }
 
     /// Creates an iterator that covers the specified range in the `VecDeque`.
@@ -761,14 +795,28 @@ impl<T> Vc<T> {
     /// assert_eq!(all.len(), 3);
     /// ```
     #[inline]
-    // TODO: with https://github.com/rust-lang/rust/pull/74099, this can become iter::Iter<'_, T>,
-    // which would also give us DoubleEndedIterator + FusedIterator.
-    pub fn range<R>(&self, range: R) -> impl ExactSizeIterator<Item = &'_ T>
+    pub fn range<R>(&self, range: R) -> iter::Iter<'_, T>
     where
         R: RangeBounds<usize>,
     {
-        let (start, end) = self.range_start_end(range);
-        self.iter().skip(start).take(end - start)
+        let (head, tail) = self.range_start_end_split(range);
+        let head = if let Some((start_incl, end_excl)) = head {
+            debug_assert!(self.old_head.is_some());
+            let old_mut = self
+                .old_head
+                .as_ref()
+                .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+            Some(old_mut.range(start_incl..end_excl))
+        } else {
+            None
+        };
+        let tail = if let Some((start_incl, end_excl)) = tail {
+            self.new_tail.range(start_incl..end_excl)
+        } else {
+            self.new_tail.range(..0)
+        };
+
+        iter::Iter { head, tail }
     }
 
     /// Creates an iterator that covers the specified mutable range in the `VecDeque`.
@@ -795,15 +843,29 @@ impl<T> Vc<T> {
     /// }
     /// assert_eq!(v, vec![2, 4, 12]);
     /// ```
-    // TODO: with https://github.com/rust-lang/rust/pull/74099, this can become iter::IterMut<'_,
-    // T>, which would also give us DoubleEndedIterator + FusedIterator.
     #[inline]
-    pub fn range_mut<R>(&mut self, range: R) -> impl ExactSizeIterator<Item = &'_ mut T>
+    pub fn range_mut<R>(&mut self, range: R) -> iter::IterMut<'_, T>
     where
         R: RangeBounds<usize>,
     {
-        let (start, end) = self.range_start_end(range);
-        self.iter_mut().skip(start).take(end - start)
+        let (head, tail) = self.range_start_end_split(range);
+        let head = if let Some((start_incl, end_excl)) = head {
+            debug_assert!(self.old_head.is_some());
+            let old_mut = self
+                .old_head
+                .as_mut()
+                .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+            Some(old_mut.range_mut(start_incl..end_excl))
+        } else {
+            None
+        };
+        let tail = if let Some((start_incl, end_excl)) = tail {
+            self.new_tail.range_mut(start_incl..end_excl)
+        } else {
+            self.new_tail.range_mut(..0)
+        };
+
+        iter::IterMut { head, tail }
     }
 
     /// Creates a draining iterator that removes the specified range in the
@@ -840,17 +902,8 @@ impl<T> Vc<T> {
     where
         R: RangeBounds<usize>,
     {
-        let old_len = self.old_len();
-        if old_len == 0 {
-            return iter::Drain {
-                head: None,
-                tail: self.new_tail.drain(range),
-            };
-        }
-
-        let (start_incl, end_excl) = self.range_start_end(range);
-        debug_assert!(start_incl <= end_excl);
-        let head = if start_incl < old_len {
+        let (head, tail) = self.range_start_end_split(range);
+        let head = if let Some((start_incl, end_excl)) = head {
             // TODO: take_old when drained if start_incl == 0 && end_excl >= old_len
             // NOTE: cannot use old_mut() here because of split borrows
             debug_assert!(self.old_head.is_some());
@@ -858,17 +911,12 @@ impl<T> Vc<T> {
                 .old_head
                 .as_mut()
                 .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
-            Some(old_mut.drain(start_incl..end_excl.min(old_len)))
+            Some(old_mut.drain(start_incl..end_excl))
         } else {
             None
         };
-        let tail = if end_excl > old_len {
-            if start_incl > old_len {
-                self.new_tail
-                    .drain((start_incl - old_len)..(end_excl - old_len))
-            } else {
-                self.new_tail.drain(..(end_excl - old_len))
-            }
+        let tail = if let Some((start_incl, end_excl)) = tail {
+            self.new_tail.drain(start_incl..end_excl)
         } else {
             self.new_tail.drain(..0)
         };
