@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "atone"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "jemallocator",
  "lazy_static",
