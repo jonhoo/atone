@@ -29,7 +29,7 @@ fn test_serde_non_empty() {
 
 #[test]
 fn test_serde_while_atoning() {
-    let mut my_vec: Vc<u32> = Vc::new();
+    let mut my_vec: Vc<u32> = Vc::with_capacity(15);
     for i in 1..=16 {
         my_vec.push(i);
     }
