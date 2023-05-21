@@ -17,15 +17,6 @@ use rayon_::iter::*;
 /// declared with an `inner` field.
 ///
 /// The implementation of `IntoParallelIterator` should be added separately.
-///
-/// # Example
-///
-/// ```
-/// delegate_iterator!{
-///     MyIntoIter<T, U> => (T, U),
-///     impl<T: Ord + Send, U: Send>
-/// }
-/// ```
 macro_rules! delegate_iterator {
     ($iter:ty => $item:ty ,
      impl $( $args:tt )*
