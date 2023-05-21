@@ -27,6 +27,8 @@ jobs:
         run: cargo generate-lockfile
       - name: cargo test --locked
         run: cargo test --locked --all-features --all-targets
+        env:
+          QUICKCHECK_TESTS: 500
   # https://twitter.com/alcuadrado/status/1571291687837732873
   update:
     runs-on: ubuntu-latest
@@ -50,3 +52,4 @@ jobs:
         run: cargo test --locked --all-features --all-targets
         env:
           RUSTFLAGS: -D deprecated
+          QUICKCHECK_TESTS: 500

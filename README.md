@@ -1,6 +1,5 @@
 [![Crates.io](https://img.shields.io/crates/v/atone.svg)](https://crates.io/crates/atone)
 [![Documentation](https://docs.rs/atone/badge.svg)](https://docs.rs/atone/)
-[![Build Status](https://dev.azure.com/jonhoo/jonhoo/_apis/build/status/atone?branchName=master)](https://dev.azure.com/jonhoo/jonhoo/_build/latest?definitionId=28&branchName=master)
 [![Coverage Status](https://codecov.io/gh/jonhoo/atone/branch/master/graph/badge.svg)](https://codecov.io/gh/jonhoo/atone)
 ![Maintenance](https://img.shields.io/badge/maintenance-experimental-blue.svg)
 

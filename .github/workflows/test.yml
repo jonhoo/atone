@@ -30,6 +30,8 @@ jobs:
       # https://twitter.com/jonhoo/status/1571290371124260865
       - name: cargo test --locked
         run: cargo test --locked --all-features --all-targets
+        env:
+          QUICKCHECK_TESTS: 500
       # https://github.com/rust-lang/cargo/issues/6669
       - name: cargo test --doc
         run: cargo test --locked --all-features --doc
@@ -50,6 +52,8 @@ jobs:
         run: cargo +nightly update -Zminimal-versions
       - name: cargo test
         run: cargo test --locked --all-features --all-targets
+        env:
+          QUICKCHECK_TESTS: 500
   os-check:
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }} / stable
@@ -68,6 +72,8 @@ jobs:
         run: cargo generate-lockfile
       - name: cargo test
         run: cargo test --locked --all-features --all-targets
+        env:
+          QUICKCHECK_TESTS: 500
   coverage:
     runs-on: ubuntu-latest
     name: ubuntu / stable / coverage
@@ -86,6 +92,8 @@ jobs:
         run: cargo generate-lockfile
       - name: cargo llvm-cov
         run: cargo llvm-cov --locked --all-features --lcov --output-path lcov.info
+        env:
+          QUICKCHECK_TESTS: 500
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
         with:
