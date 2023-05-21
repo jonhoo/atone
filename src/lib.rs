@@ -129,7 +129,7 @@ impl<T> Vc<T> {
     ///
     /// let vector: Vc<u32> = Vc::new();
     /// ```
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             new_tail: VecDeque::new(),
             old_head: None,
@@ -658,7 +658,7 @@ impl<T> Vc<T> {
     ///
     /// ```
     /// use atone::Vc;
-    /// let mut vector = Vc::new();
+    /// let mut vector = Vc::with_capacity(3);
     ///
     /// vector.push(0);
     /// vector.push(1);
@@ -1965,8 +1965,8 @@ mod tests {
 
     #[test]
     fn test_zero_capacities() {
-        assert_eq!(VecDeque::<i32>::with_capacity(0).capacity(), 1);
-        assert_eq!(Vc::<i32>::with_capacity(0).capacity(), 1);
+        assert_eq!(VecDeque::<i32>::with_capacity(0).capacity(), 0);
+        assert_eq!(Vc::<i32>::with_capacity(0).capacity(), 0);
     }
 
     #[test]
@@ -2013,7 +2013,11 @@ mod tests {
         // fourth push will split and migrate all elements
         assert!(!m.is_atoning());
         m.push(4);
-        // capacity should now be doubled
+        // capacity should now be increased
+        assert_eq!(m.capacity(), 5);
+        // we hard-code what it grows to just to make life easier below
+        let n = m.new_tail.len();
+        m.new_tail.reserve_exact(7 - n);
         assert_eq!(m.capacity(), 7);
         // and there should be no leftovers
         assert!(!m.is_atoning());
@@ -2034,7 +2038,11 @@ mod tests {
 
         // next push will split, and move some, but not all (since R < old.len())
         m.push(8);
-        // capacity should now be doubled
+        // capacity should now increase again
+        assert_eq!(m.capacity(), 11);
+        // and again we fix the new capacity to make the code below easier
+        let n = m.new_tail.len();
+        m.new_tail.reserve_exact(15 - n);
         assert_eq!(m.capacity(), 15);
         // and there should be leftovers
         assert!(m.is_atoning());
@@ -2335,13 +2343,13 @@ mod tests {
     #[test]
     fn test_iterate() {
         let mut vs = Vc::with_capacity(4);
-        for i in 0..32 {
+        for i in 0..=36 {
             vs.push(i * 2);
         }
         assert!(vs.is_atoning());
-        assert_eq!(vs.len(), 32);
+        assert_eq!(vs.len(), 37);
 
-        assert!(vs.iter().copied().eq((0..32).map(|v| v * 2)));
+        assert!(vs.iter().copied().eq((0..=36).map(|v| v * 2)));
     }
 
     #[test]
@@ -2437,7 +2445,7 @@ mod tests {
 
     #[test]
     fn test_index() {
-        let mut vs = Vc::new();
+        let mut vs = Vc::with_capacity(7);
 
         for i in 1..=8 {
             vs.push(i);
