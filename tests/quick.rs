@@ -7,8 +7,7 @@ use atone::Vc;
 
 use quickcheck::Arbitrary;
 use quickcheck::Gen;
-
-use rand::Rng;
+use quickcheck::TestResult;
 
 use std::cmp::min;
 use std::collections::HashSet;
@@ -82,10 +81,14 @@ quickcheck! {
         elements.iter().all(|v| vs.contains(v)) && vs.iter().all(|v| elements.contains(&v))
     }
 
-    fn with_cap(cap: usize) -> bool {
+    fn with_cap(cap: usize) -> TestResult {
+        // Once https://github.com/BurntSushi/quickcheck/issues/267 is resolved: generate a number in range
+        if cap > 100 {
+            return TestResult::discard();
+        }
         let vs: Vc<u8> = Vc::with_capacity(cap);
         println!("wish: {}, got: {} (diff: {})", cap, vs.capacity(), vs.capacity() as isize - cap as isize);
-        vs.capacity() >= cap
+        TestResult::from_bool(vs.capacity() >= cap)
     }
 }
 
@@ -106,15 +109,15 @@ impl<T> Arbitrary for Op<T>
 where
     T: Arbitrary,
 {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
-        match g.gen::<u32>() % 9 {
+    fn arbitrary(g: &mut Gen) -> Self {
+        match u32::arbitrary(g) % 9 {
             0 | 1 => Push(T::arbitrary(g)),
             2 => Pop,
             3 => PopFront,
-            4 => SwapRemove(g.gen::<u16>()),
-            5 => Insert(g.gen::<u16>(), T::arbitrary(g)),
-            6 => Truncate(g.gen::<u8>()),
-            7 => Reserve(g.gen::<u8>()),
+            4 => SwapRemove(u16::arbitrary(g)),
+            5 => Insert(u16::arbitrary(g), T::arbitrary(g)),
+            6 => Truncate(u8::arbitrary(g)),
+            7 => Reserve(u8::arbitrary(g)),
             8 => CheckEnds,
             _ => unreachable!(),
         }
@@ -221,12 +224,12 @@ impl Deref for Alpha {
 const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
 
 impl Arbitrary for Alpha {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
-        let len = g.next_u32() % g.size() as u32;
+    fn arbitrary(g: &mut Gen) -> Self {
+        let len = u32::arbitrary(g) % g.size() as u32;
         let len = min(len, 16);
         Alpha(
             (0..len)
-                .map(|_| ALPHABET[g.next_u32() as usize % ALPHABET.len()] as char)
+                .map(|_| ALPHABET[u32::arbitrary(g) as usize % ALPHABET.len()] as char)
                 .collect(),
         )
     }
@@ -251,8 +254,8 @@ impl<T> Arbitrary for Large<Vec<T>>
 where
     T: Arbitrary,
 {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
-        let len = g.next_u32() % (g.size() * 10) as u32;
+    fn arbitrary(g: &mut Gen) -> Self {
+        let len = u32::arbitrary(g) % (g.size() * 10) as u32;
         Large((0..len).map(|_| T::arbitrary(g)).collect())
     }
 
