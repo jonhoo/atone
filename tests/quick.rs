@@ -82,7 +82,8 @@ quickcheck! {
         elements.iter().all(|v| vs.contains(v)) && vs.iter().all(|v| elements.contains(&v))
     }
 
-    fn with_cap(cap: usize) -> bool {
+    fn with_cap(cap: u8) -> bool {
+        let cap = cap as usize;
         let vs: Vc<u8> = Vc::with_capacity(cap);
         println!("wish: {}, got: {} (diff: {})", cap, vs.capacity(), vs.capacity() as isize - cap as isize);
         vs.capacity() >= cap
