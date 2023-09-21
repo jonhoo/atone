@@ -56,10 +56,12 @@
 #![warn(rust_2018_idioms)]
 #![warn(rustdoc::all)]
 
+/*
 #[cfg(any(test, miri))]
 pub(crate) const R: usize = 4;
 #[cfg(not(any(test, miri)))]
 const R: usize = 8;
+*/
 
 #[cfg(test)]
 #[macro_use]
@@ -87,20 +89,25 @@ pub mod vc {
     pub use super::iter::*;
 }
 
+#[cfg(any(test, miri))]
+pub type Vc<T> = RawVc<4, T>;
+#[cfg(not(any(test, miri)))]
+pub type Vc<T> = RawVc<8, T>;
+
 /// A `VecDeque` (and `Vec`) variant that spreads resize load across pushes.
 ///
 /// See the [crate-level documentation] for details.
 ///
 /// [crate-level documentation]: index.html
-pub struct Vc<T> {
+pub struct RawVc<const R: usize, T> {
     // Logically, the arrangement here is that `head` is the leftovers from the previous resize.
     // All of which preceede the `tail`, which is where new pushes go.
     new_tail: VecDeque<T>,
     old_head: Option<VecDeque<T>>,
 }
 
-impl<T: Clone> Clone for Vc<T> {
-    fn clone(&self) -> Vc<T> {
+impl<const R: usize, T: Clone> Clone for RawVc<R, T> {
+    fn clone(&self) -> RawVc<R, T> {
         self.iter().cloned().collect()
     }
 
@@ -111,7 +118,7 @@ impl<T: Clone> Clone for Vc<T> {
     }
 }
 
-impl<T> Default for Vc<T> {
+impl<const R: usize, T> Default for RawVc<R, T> {
     /// Creates an empty `Vc<T>`.
     #[inline]
     fn default() -> Self {
@@ -119,7 +126,7 @@ impl<T> Default for Vc<T> {
     }
 }
 
-impl<T> Vc<T> {
+impl<const S: usize, T> RawVc<S, T> {
     /// Creates an empty `Vc`.
     ///
     /// # Examples
@@ -134,6 +141,10 @@ impl<T> Vc<T> {
             new_tail: VecDeque::new(),
             old_head: None,
         }
+    }
+
+    pub const fn move_amount() -> usize {
+        S
     }
 
     /// Creates an empty `Vc` with space for at least `capacity` elements.
@@ -555,7 +566,7 @@ impl<T> Vc<T> {
             // We move R items on each insert.
             // That means we need to accomodate another
             // lo.table.len() / R (rounded up) inserts to move them all.
-            need += (old_len + R - 1) / R;
+            need += (old_len + S - 1) / S;
         } else if min_capacity <= need {
             self.new_tail.shrink_to_fit();
         }
@@ -1473,14 +1484,14 @@ impl<T> Vc<T> {
             // but we already have a mechanism for doing so -- old_head!
             let tail_of_old = keep.split_off(at);
             let give_away = mem::replace(&mut self.new_tail, keep);
-            Vc {
+            RawVc {
                 new_tail: give_away,
                 old_head: Some(tail_of_old),
             }
         } else {
             // we're splitting off from the tail, which means we're going to keep the old head.
             let give_away = self.new_tail.split_off(at);
-            Vc {
+            RawVc {
                 new_tail: give_away,
                 old_head: None,
             }
@@ -1577,7 +1588,7 @@ impl<T> Vc<T> {
         //  - We move R items on each push, so to move len items takes
         //    len / R pushes (rounded up!)
         //  - Since we want to round up, we pull the old +R-1 trick
-        let pushes = (self.new_tail.len() + R - 1) / R;
+        let pushes = (self.new_tail.len() + S - 1) / S;
         //  - That's len + len/R
         //    Which is == R*len/R + len/R
         //    Which is == ((R+1)*len)/R
@@ -1688,7 +1699,7 @@ impl<T> Vc<T> {
     }
 }
 
-impl<T: Clone> Vc<T> {
+impl<const R: usize, T: Clone> RawVc<R, T> {
     /// Modifies the `Vc` in-place so that `len()` is equal to new_len,
     /// either by removing excess elements from the back or by appending clones of `value`
     /// to the back.
@@ -1715,7 +1726,7 @@ impl<T: Clone> Vc<T> {
     }
 }
 
-impl<A: PartialEq> PartialEq for Vc<A> {
+impl<const R: usize, A: PartialEq> PartialEq for RawVc<R, A> {
     fn eq(&self, other: &Self) -> bool {
         if self.len() != other.len() {
             return false;
@@ -1739,11 +1750,11 @@ impl<A: PartialEq> PartialEq for Vc<A> {
     }
 }
 
-impl<A: Eq> Eq for Vc<A> {}
+impl<const R: usize, A: Eq> Eq for RawVc<R, A> {}
 
 macro_rules! __impl_slice_eq1 {
     ($lhs:ty, $rhs:ty, $($constraints:tt)*) => {
-        impl<A, B> PartialEq<$rhs> for $lhs
+        impl<const R: usize, A, B> PartialEq<$rhs> for $lhs
         where
             A: PartialEq<B>,
             $($constraints)*
@@ -1759,15 +1770,15 @@ macro_rules! __impl_slice_eq1 {
     }
 }
 
-__impl_slice_eq1! { Vc<A>, Vec<B>, }
-__impl_slice_eq1! { Vc<A>, &[B], }
-__impl_slice_eq1! { Vc<A>, &mut [B], }
+__impl_slice_eq1! { RawVc<R, A>, Vec<B>, }
+__impl_slice_eq1! { RawVc<R, A>, &[B], }
+__impl_slice_eq1! { RawVc<R, A>, &mut [B], }
 
 // For symmetry:
 
 macro_rules! __impl_slice_eq2 {
     ($lhs:ty, $rhs:ty, $($constraints:tt)*) => {
-        impl<A, B> PartialEq<$lhs> for $rhs
+        impl<const R: usize, A, B> PartialEq<$lhs> for $rhs
         where
             A: PartialEq<B>,
             $($constraints)*
@@ -1783,11 +1794,11 @@ macro_rules! __impl_slice_eq2 {
     }
 }
 
-__impl_slice_eq2! { Vc<A>, Vec<B>, }
-__impl_slice_eq2! { Vc<A>, &[B], }
-__impl_slice_eq2! { Vc<A>, &mut [B], }
+__impl_slice_eq2! { RawVc<R, A>, Vec<B>, }
+__impl_slice_eq2! { RawVc<R, A>, &[B], }
+__impl_slice_eq2! { RawVc<R, A>, &mut [B], }
 
-impl<A: PartialOrd> PartialOrd for Vc<A> {
+impl<const R: usize, A: PartialOrd> PartialOrd for RawVc<R, A> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self.old_len(), other.old_len()) {
             (0, 0) => self.new_tail.partial_cmp(&other.new_tail),
@@ -1813,7 +1824,7 @@ impl<A: PartialOrd> PartialOrd for Vc<A> {
     }
 }
 
-impl<A: Ord> Ord for Vc<A> {
+impl<const R: usize, A: Ord> Ord for RawVc<R, A> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         match (self.old_len(), other.old_len()) {
@@ -1837,7 +1848,7 @@ impl<A: Ord> Ord for Vc<A> {
     }
 }
 
-impl<A: Hash> Hash for Vc<A> {
+impl<const R: usize, A: Hash> Hash for RawVc<R, A> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.len().hash(state);
 
@@ -1848,7 +1859,7 @@ impl<A: Hash> Hash for Vc<A> {
     }
 }
 
-impl<A> Index<usize> for Vc<A> {
+impl<const R: usize, A> Index<usize> for RawVc<R, A> {
     type Output = A;
 
     #[inline]
@@ -1857,14 +1868,14 @@ impl<A> Index<usize> for Vc<A> {
     }
 }
 
-impl<A> IndexMut<usize> for Vc<A> {
+impl<const R: usize, A> IndexMut<usize> for RawVc<R, A> {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut A {
         self.get_mut(index).expect("Out of bounds access")
     }
 }
 
-impl<A> FromIterator<A> for Vc<A> {
+impl<const R: usize, A> FromIterator<A> for RawVc<R, A> {
     fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
         let iterator = iter.into_iter();
         let (lower, _) = iterator.size_hint();
@@ -1874,7 +1885,7 @@ impl<A> FromIterator<A> for Vc<A> {
     }
 }
 
-impl<T> IntoIterator for Vc<T> {
+impl<const R: usize, T> IntoIterator for RawVc<R, T> {
     type Item = T;
     type IntoIter = iter::IntoIter<T>;
 
@@ -1886,7 +1897,7 @@ impl<T> IntoIterator for Vc<T> {
     }
 }
 
-impl<'a, T> IntoIterator for &'a Vc<T> {
+impl<'a, const R: usize, T> IntoIterator for &'a RawVc<R, T> {
     type Item = &'a T;
     type IntoIter = iter::Iter<'a, T>;
 
@@ -1895,7 +1906,7 @@ impl<'a, T> IntoIterator for &'a Vc<T> {
     }
 }
 
-impl<'a, T> IntoIterator for &'a mut Vc<T> {
+impl<'a, const R: usize, T> IntoIterator for &'a mut RawVc<R, T> {
     type Item = &'a mut T;
     type IntoIter = iter::IterMut<'a, T>;
 
@@ -1903,7 +1914,7 @@ impl<'a, T> IntoIterator for &'a mut Vc<T> {
         self.iter_mut()
     }
 }
-impl<A> Extend<A> for Vc<A> {
+impl<const R: usize, A> Extend<A> for RawVc<R, A> {
     fn extend<T: IntoIterator<Item = A>>(&mut self, iter: T) {
         // Reserve the entire hint lower bound if the Vc is empty.
         // Otherwise reserve half the hint (rounded up), so the Vc
@@ -1922,25 +1933,25 @@ impl<A> Extend<A> for Vc<A> {
     }
 }
 
-impl<'a, T: 'a + Copy> Extend<&'a T> for Vc<T> {
+impl<'a, const R: usize, T: 'a + Copy> Extend<&'a T> for RawVc<R, T> {
     fn extend<I: IntoIterator<Item = &'a T>>(&mut self, iter: I) {
         self.extend(iter.into_iter().cloned());
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for Vc<T> {
+impl<const R: usize, T: fmt::Debug> fmt::Debug for RawVc<R, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self).finish()
     }
 }
 
-impl<T> From<Vec<T>> for Vc<T> {
+impl<const R: usize, T> From<Vec<T>> for RawVc<R, T> {
     fn from(other: Vec<T>) -> Self {
         Self::from(VecDeque::from(other))
     }
 }
 
-impl<T> From<VecDeque<T>> for Vc<T> {
+impl<const R: usize, T> From<VecDeque<T>> for RawVc<R, T> {
     fn from(other: VecDeque<T>) -> Self {
         Self {
             new_tail: other,
@@ -1949,14 +1960,14 @@ impl<T> From<VecDeque<T>> for Vc<T> {
     }
 }
 
-impl<T> From<Vc<T>> for Vec<T> {
-    fn from(other: Vc<T>) -> Self {
+impl<const R: usize, T> From<RawVc<R, T>> for Vec<T> {
+    fn from(other: RawVc<R, T>) -> Self {
         VecDeque::from(other).into()
     }
 }
 
-impl<T> From<Vc<T>> for VecDeque<T> {
-    fn from(mut other: Vc<T>) -> Self {
+impl<const R: usize, T> From<RawVc<R, T>> for VecDeque<T> {
+    fn from(mut other: RawVc<R, T>) -> Self {
         if other.old_len() != 0 {
             other.carry_all();
         }
@@ -1968,7 +1979,7 @@ impl<T> From<Vc<T>> for VecDeque<T> {
 // Amortization methods
 ////////////////////////////////////////////////////////////////////////////////
 
-impl<T> Vc<T> {
+impl<const R: usize, T> RawVc<R, T> {
     #[cold]
     #[inline(never)]
     pub(crate) fn carry_all(&mut self) {
@@ -2046,7 +2057,7 @@ mod tests {
     #[test]
     fn test_split_push() {
         // the code below assumes that R is 4
-        assert_eq!(crate::R, 4);
+        // assert_eq!(crate::R, 4);
 
         let mut m = Vc::with_capacity(3);
         assert_eq!(m.capacity(), 3);
@@ -2094,8 +2105,8 @@ mod tests {
         assert_eq!(m.capacity(), 15);
         // and there should be leftovers
         assert!(m.is_atoning());
-        assert_eq!(m.new_tail.len(), 1 + crate::R);
-        assert_eq!(m.old_len(), 8 - (1 + crate::R));
+        assert_eq!(m.new_tail.len(), 1 + Vc::<()>::move_amount());
+        assert_eq!(m.old_len(), 8 - (1 + Vc::<()>::move_amount()));
         for i in 1..=8 {
             assert!(m.contains(&i));
         }
