@@ -90,24 +90,24 @@ pub mod vc {
 }
 
 #[cfg(any(test, miri))]
-pub type Vc<T> = RawVc<4, T>;
+pub type Vc<T> = RawVc<T, 4>;
 #[cfg(not(any(test, miri)))]
-pub type Vc<T> = RawVc<8, T>;
+pub type Vc<T> = RawVc<T, 8>;
 
 /// A `VecDeque` (and `Vec`) variant that spreads resize load across pushes.
 ///
 /// See the [crate-level documentation] for details.
 ///
 /// [crate-level documentation]: index.html
-pub struct RawVc<const R: usize, T> {
+pub struct RawVc<T, const R: usize> {
     // Logically, the arrangement here is that `head` is the leftovers from the previous resize.
     // All of which preceede the `tail`, which is where new pushes go.
     new_tail: VecDeque<T>,
     old_head: Option<VecDeque<T>>,
 }
 
-impl<const R: usize, T: Clone> Clone for RawVc<R, T> {
-    fn clone(&self) -> RawVc<R, T> {
+impl<T: Clone, const R: usize> Clone for RawVc<T, R> {
+    fn clone(&self) -> RawVc<T, R> {
         self.iter().cloned().collect()
     }
 
@@ -118,7 +118,7 @@ impl<const R: usize, T: Clone> Clone for RawVc<R, T> {
     }
 }
 
-impl<const R: usize, T> Default for RawVc<R, T> {
+impl<T, const R: usize> Default for RawVc<T, R> {
     /// Creates an empty `Vc<T>`.
     #[inline]
     fn default() -> Self {
@@ -126,7 +126,7 @@ impl<const R: usize, T> Default for RawVc<R, T> {
     }
 }
 
-impl<const S: usize, T> RawVc<S, T> {
+impl<T, const S: usize> RawVc<T, S> {
     /// Creates an empty `Vc`.
     ///
     /// # Examples
@@ -1699,7 +1699,7 @@ impl<const S: usize, T> RawVc<S, T> {
     }
 }
 
-impl<const R: usize, T: Clone> RawVc<R, T> {
+impl<T: Clone, const R: usize> RawVc<T, R> {
     /// Modifies the `Vc` in-place so that `len()` is equal to new_len,
     /// either by removing excess elements from the back or by appending clones of `value`
     /// to the back.
@@ -1726,7 +1726,7 @@ impl<const R: usize, T: Clone> RawVc<R, T> {
     }
 }
 
-impl<const R: usize, A: PartialEq> PartialEq for RawVc<R, A> {
+impl<A: PartialEq, const R: usize> PartialEq for RawVc<A, R> {
     fn eq(&self, other: &Self) -> bool {
         if self.len() != other.len() {
             return false;
@@ -1750,11 +1750,11 @@ impl<const R: usize, A: PartialEq> PartialEq for RawVc<R, A> {
     }
 }
 
-impl<const R: usize, A: Eq> Eq for RawVc<R, A> {}
+impl<A: Eq, const R: usize> Eq for RawVc<A, R> {}
 
 macro_rules! __impl_slice_eq1 {
     ($lhs:ty, $rhs:ty, $($constraints:tt)*) => {
-        impl<const R: usize, A, B> PartialEq<$rhs> for $lhs
+        impl<A, B, const R: usize> PartialEq<$rhs> for $lhs
         where
             A: PartialEq<B>,
             $($constraints)*
@@ -1770,15 +1770,15 @@ macro_rules! __impl_slice_eq1 {
     }
 }
 
-__impl_slice_eq1! { RawVc<R, A>, Vec<B>, }
-__impl_slice_eq1! { RawVc<R, A>, &[B], }
-__impl_slice_eq1! { RawVc<R, A>, &mut [B], }
+__impl_slice_eq1! { RawVc<A, R>, Vec<B>, }
+__impl_slice_eq1! { RawVc<A, R>, &[B], }
+__impl_slice_eq1! { RawVc<A, R>, &mut [B], }
 
 // For symmetry:
 
 macro_rules! __impl_slice_eq2 {
     ($lhs:ty, $rhs:ty, $($constraints:tt)*) => {
-        impl<const R: usize, A, B> PartialEq<$lhs> for $rhs
+        impl<A, B, const R: usize> PartialEq<$lhs> for $rhs
         where
             A: PartialEq<B>,
             $($constraints)*
@@ -1794,11 +1794,11 @@ macro_rules! __impl_slice_eq2 {
     }
 }
 
-__impl_slice_eq2! { RawVc<R, A>, Vec<B>, }
-__impl_slice_eq2! { RawVc<R, A>, &[B], }
-__impl_slice_eq2! { RawVc<R, A>, &mut [B], }
+__impl_slice_eq2! { RawVc<A, R>, Vec<B>, }
+__impl_slice_eq2! { RawVc<A, R>, &[B], }
+__impl_slice_eq2! { RawVc<A, R>, &mut [B], }
 
-impl<const R: usize, A: PartialOrd> PartialOrd for RawVc<R, A> {
+impl<A: PartialOrd, const R: usize> PartialOrd for RawVc<A, R> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self.old_len(), other.old_len()) {
             (0, 0) => self.new_tail.partial_cmp(&other.new_tail),
@@ -1824,7 +1824,7 @@ impl<const R: usize, A: PartialOrd> PartialOrd for RawVc<R, A> {
     }
 }
 
-impl<const R: usize, A: Ord> Ord for RawVc<R, A> {
+impl<A: Ord, const R: usize> Ord for RawVc<A, R> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         match (self.old_len(), other.old_len()) {
@@ -1848,7 +1848,7 @@ impl<const R: usize, A: Ord> Ord for RawVc<R, A> {
     }
 }
 
-impl<const R: usize, A: Hash> Hash for RawVc<R, A> {
+impl<A: Hash, const R: usize> Hash for RawVc<A, R> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.len().hash(state);
 
@@ -1859,7 +1859,7 @@ impl<const R: usize, A: Hash> Hash for RawVc<R, A> {
     }
 }
 
-impl<const R: usize, A> Index<usize> for RawVc<R, A> {
+impl<A, const R: usize> Index<usize> for RawVc<A, R> {
     type Output = A;
 
     #[inline]
@@ -1868,14 +1868,14 @@ impl<const R: usize, A> Index<usize> for RawVc<R, A> {
     }
 }
 
-impl<const R: usize, A> IndexMut<usize> for RawVc<R, A> {
+impl<A, const R: usize> IndexMut<usize> for RawVc<A, R> {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut A {
         self.get_mut(index).expect("Out of bounds access")
     }
 }
 
-impl<const R: usize, A> FromIterator<A> for RawVc<R, A> {
+impl<A, const R: usize> FromIterator<A> for RawVc<A, R> {
     fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
         let iterator = iter.into_iter();
         let (lower, _) = iterator.size_hint();
@@ -1885,7 +1885,7 @@ impl<const R: usize, A> FromIterator<A> for RawVc<R, A> {
     }
 }
 
-impl<const R: usize, T> IntoIterator for RawVc<R, T> {
+impl<T, const R: usize> IntoIterator for RawVc<T, R> {
     type Item = T;
     type IntoIter = iter::IntoIter<T>;
 
@@ -1897,7 +1897,7 @@ impl<const R: usize, T> IntoIterator for RawVc<R, T> {
     }
 }
 
-impl<'a, const R: usize, T> IntoIterator for &'a RawVc<R, T> {
+impl<'a, T, const R: usize> IntoIterator for &'a RawVc<T, R> {
     type Item = &'a T;
     type IntoIter = iter::Iter<'a, T>;
 
@@ -1906,7 +1906,7 @@ impl<'a, const R: usize, T> IntoIterator for &'a RawVc<R, T> {
     }
 }
 
-impl<'a, const R: usize, T> IntoIterator for &'a mut RawVc<R, T> {
+impl<'a, T, const R: usize> IntoIterator for &'a mut RawVc<T, R> {
     type Item = &'a mut T;
     type IntoIter = iter::IterMut<'a, T>;
 
@@ -1914,7 +1914,7 @@ impl<'a, const R: usize, T> IntoIterator for &'a mut RawVc<R, T> {
         self.iter_mut()
     }
 }
-impl<const R: usize, A> Extend<A> for RawVc<R, A> {
+impl<A, const R: usize> Extend<A> for RawVc<A, R> {
     fn extend<T: IntoIterator<Item = A>>(&mut self, iter: T) {
         // Reserve the entire hint lower bound if the Vc is empty.
         // Otherwise reserve half the hint (rounded up), so the Vc
@@ -1933,25 +1933,25 @@ impl<const R: usize, A> Extend<A> for RawVc<R, A> {
     }
 }
 
-impl<'a, const R: usize, T: 'a + Copy> Extend<&'a T> for RawVc<R, T> {
+impl<'a, T: 'a + Copy, const R: usize> Extend<&'a T> for RawVc<T, R> {
     fn extend<I: IntoIterator<Item = &'a T>>(&mut self, iter: I) {
         self.extend(iter.into_iter().cloned());
     }
 }
 
-impl<const R: usize, T: fmt::Debug> fmt::Debug for RawVc<R, T> {
+impl<T: fmt::Debug, const R: usize> fmt::Debug for RawVc<T, R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self).finish()
     }
 }
 
-impl<const R: usize, T> From<Vec<T>> for RawVc<R, T> {
+impl<T, const R: usize> From<Vec<T>> for RawVc<T, R> {
     fn from(other: Vec<T>) -> Self {
         Self::from(VecDeque::from(other))
     }
 }
 
-impl<const R: usize, T> From<VecDeque<T>> for RawVc<R, T> {
+impl<T, const R: usize> From<VecDeque<T>> for RawVc<T, R> {
     fn from(other: VecDeque<T>) -> Self {
         Self {
             new_tail: other,
@@ -1960,14 +1960,14 @@ impl<const R: usize, T> From<VecDeque<T>> for RawVc<R, T> {
     }
 }
 
-impl<const R: usize, T> From<RawVc<R, T>> for Vec<T> {
-    fn from(other: RawVc<R, T>) -> Self {
+impl<T, const R: usize> From<RawVc<T, R>> for Vec<T> {
+    fn from(other: RawVc<T, R>) -> Self {
         VecDeque::from(other).into()
     }
 }
 
-impl<const R: usize, T> From<RawVc<R, T>> for VecDeque<T> {
-    fn from(mut other: RawVc<R, T>) -> Self {
+impl<T, const R: usize> From<RawVc<T, R>> for VecDeque<T> {
+    fn from(mut other: RawVc<T, R>) -> Self {
         if other.old_len() != 0 {
             other.carry_all();
         }
@@ -1979,7 +1979,7 @@ impl<const R: usize, T> From<RawVc<R, T>> for VecDeque<T> {
 // Amortization methods
 ////////////////////////////////////////////////////////////////////////////////
 
-impl<const R: usize, T> RawVc<R, T> {
+impl<T, const R: usize> RawVc<T, R> {
     #[cold]
     #[inline(never)]
     pub(crate) fn carry_all(&mut self) {
