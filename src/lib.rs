@@ -56,13 +56,6 @@
 #![warn(rust_2018_idioms)]
 #![warn(rustdoc::all)]
 
-/*
-#[cfg(any(test, miri))]
-pub(crate) const R: usize = 4;
-#[cfg(not(any(test, miri)))]
-const R: usize = 8;
-*/
-
 #[cfg(test)]
 #[macro_use]
 extern crate std;
@@ -89,25 +82,34 @@ pub mod vc {
     pub use super::iter::*;
 }
 
-#[cfg(any(test, miri))]
-pub type Vc<T> = RawVc<T, 4>;
-#[cfg(not(any(test, miri)))]
-pub type Vc<T> = RawVc<T, 8>;
+const fn default_r() -> usize {
+    // I get an error when I omit the return for some reason?
+    // so thats why the explicit return is needed here
+
+    #[cfg(any(test, miri))]
+    return 4;
+    #[cfg(not(any(test, miri)))]
+    return 8;
+}
+
+// TODO
+// What should the docs say here?
+pub type Vc<T> = CustomVc<T, { default_r() }>;
 
 /// A `VecDeque` (and `Vec`) variant that spreads resize load across pushes.
 ///
 /// See the [crate-level documentation] for details.
 ///
 /// [crate-level documentation]: index.html
-pub struct RawVc<T, const R: usize> {
+pub struct CustomVc<T, const R: usize = { default_r() }> {
     // Logically, the arrangement here is that `head` is the leftovers from the previous resize.
     // All of which preceede the `tail`, which is where new pushes go.
     new_tail: VecDeque<T>,
     old_head: Option<VecDeque<T>>,
 }
 
-impl<T: Clone, const R: usize> Clone for RawVc<T, R> {
-    fn clone(&self) -> RawVc<T, R> {
+impl<T: Clone, const R: usize> Clone for CustomVc<T, R> {
+    fn clone(&self) -> CustomVc<T, R> {
         self.iter().cloned().collect()
     }
 
@@ -118,7 +120,7 @@ impl<T: Clone, const R: usize> Clone for RawVc<T, R> {
     }
 }
 
-impl<T, const R: usize> Default for RawVc<T, R> {
+impl<T, const R: usize> Default for CustomVc<T, R> {
     /// Creates an empty `Vc<T>`.
     #[inline]
     fn default() -> Self {
@@ -126,7 +128,7 @@ impl<T, const R: usize> Default for RawVc<T, R> {
     }
 }
 
-impl<T, const S: usize> RawVc<T, S> {
+impl<T, const R: usize> CustomVc<T, R> {
     /// Creates an empty `Vc`.
     ///
     /// # Examples
@@ -144,7 +146,7 @@ impl<T, const S: usize> RawVc<T, S> {
     }
 
     pub const fn move_amount() -> usize {
-        S
+        R
     }
 
     /// Creates an empty `Vc` with space for at least `capacity` elements.
@@ -566,7 +568,7 @@ impl<T, const S: usize> RawVc<T, S> {
             // We move R items on each insert.
             // That means we need to accomodate another
             // lo.table.len() / R (rounded up) inserts to move them all.
-            need += (old_len + S - 1) / S;
+            need += (old_len + R - 1) / R;
         } else if min_capacity <= need {
             self.new_tail.shrink_to_fit();
         }
@@ -732,9 +734,9 @@ impl<T, const S: usize> RawVc<T, S> {
     }
 
     #[inline]
-    fn range_start_end<R>(&self, range: R) -> (usize, usize)
+    fn range_start_end<Range>(&self, range: Range) -> (usize, usize)
     where
-        R: RangeBounds<usize>,
+        Range: RangeBounds<usize>,
     {
         let len = self.len();
         let start = match range.start_bound() {
@@ -753,9 +755,12 @@ impl<T, const S: usize> RawVc<T, S> {
     }
 
     #[inline]
-    fn range_start_end_split<R>(&self, range: R) -> (Option<(usize, usize)>, Option<(usize, usize)>)
+    fn range_start_end_split<Range>(
+        &self,
+        range: Range,
+    ) -> (Option<(usize, usize)>, Option<(usize, usize)>)
     where
-        R: RangeBounds<usize>,
+        Range: RangeBounds<usize>,
     {
         let (start_incl, end_excl) = self.range_start_end(range);
 
@@ -806,9 +811,9 @@ impl<T, const S: usize> RawVc<T, S> {
     /// assert_eq!(all.len(), 3);
     /// ```
     #[inline]
-    pub fn range<R>(&self, range: R) -> iter::Iter<'_, T>
+    pub fn range<Range>(&self, range: Range) -> iter::Iter<'_, T>
     where
-        R: RangeBounds<usize>,
+        Range: RangeBounds<usize>,
     {
         let (head, tail) = self.range_start_end_split(range);
         let head = if let Some((start_incl, end_excl)) = head {
@@ -855,9 +860,9 @@ impl<T, const S: usize> RawVc<T, S> {
     /// assert_eq!(v, vec![2, 4, 12]);
     /// ```
     #[inline]
-    pub fn range_mut<R>(&mut self, range: R) -> iter::IterMut<'_, T>
+    pub fn range_mut<Range>(&mut self, range: Range) -> iter::IterMut<'_, T>
     where
-        R: RangeBounds<usize>,
+        Range: RangeBounds<usize>,
     {
         let (head, tail) = self.range_start_end_split(range);
         let head = if let Some((start_incl, end_excl)) = head {
@@ -909,9 +914,9 @@ impl<T, const S: usize> RawVc<T, S> {
     /// assert!(v.is_empty());
     /// ```
     #[inline]
-    pub fn drain<R>(&mut self, range: R) -> iter::Drain<'_, T>
+    pub fn drain<Range>(&mut self, range: Range) -> iter::Drain<'_, T>
     where
-        R: RangeBounds<usize>,
+        Range: RangeBounds<usize>,
     {
         let (head, tail) = self.range_start_end_split(range);
         let head = if let Some((start_incl, end_excl)) = head {
@@ -1484,14 +1489,14 @@ impl<T, const S: usize> RawVc<T, S> {
             // but we already have a mechanism for doing so -- old_head!
             let tail_of_old = keep.split_off(at);
             let give_away = mem::replace(&mut self.new_tail, keep);
-            RawVc {
+            CustomVc {
                 new_tail: give_away,
                 old_head: Some(tail_of_old),
             }
         } else {
             // we're splitting off from the tail, which means we're going to keep the old head.
             let give_away = self.new_tail.split_off(at);
-            RawVc {
+            CustomVc {
                 new_tail: give_away,
                 old_head: None,
             }
@@ -1588,7 +1593,7 @@ impl<T, const S: usize> RawVc<T, S> {
         //  - We move R items on each push, so to move len items takes
         //    len / R pushes (rounded up!)
         //  - Since we want to round up, we pull the old +R-1 trick
-        let pushes = (self.new_tail.len() + S - 1) / S;
+        let pushes = (self.new_tail.len() + R - 1) / R;
         //  - That's len + len/R
         //    Which is == R*len/R + len/R
         //    Which is == ((R+1)*len)/R
@@ -1699,7 +1704,7 @@ impl<T, const S: usize> RawVc<T, S> {
     }
 }
 
-impl<T: Clone, const R: usize> RawVc<T, R> {
+impl<T: Clone, const R: usize> CustomVc<T, R> {
     /// Modifies the `Vc` in-place so that `len()` is equal to new_len,
     /// either by removing excess elements from the back or by appending clones of `value`
     /// to the back.
@@ -1726,7 +1731,7 @@ impl<T: Clone, const R: usize> RawVc<T, R> {
     }
 }
 
-impl<A: PartialEq, const R: usize> PartialEq for RawVc<A, R> {
+impl<A: PartialEq, const R: usize> PartialEq for CustomVc<A, R> {
     fn eq(&self, other: &Self) -> bool {
         if self.len() != other.len() {
             return false;
@@ -1750,7 +1755,7 @@ impl<A: PartialEq, const R: usize> PartialEq for RawVc<A, R> {
     }
 }
 
-impl<A: Eq, const R: usize> Eq for RawVc<A, R> {}
+impl<A: Eq, const R: usize> Eq for CustomVc<A, R> {}
 
 macro_rules! __impl_slice_eq1 {
     ($lhs:ty, $rhs:ty, $($constraints:tt)*) => {
@@ -1770,9 +1775,9 @@ macro_rules! __impl_slice_eq1 {
     }
 }
 
-__impl_slice_eq1! { RawVc<A, R>, Vec<B>, }
-__impl_slice_eq1! { RawVc<A, R>, &[B], }
-__impl_slice_eq1! { RawVc<A, R>, &mut [B], }
+__impl_slice_eq1! { CustomVc<A, R>, Vec<B>, }
+__impl_slice_eq1! { CustomVc<A, R>, &[B], }
+__impl_slice_eq1! { CustomVc<A, R>, &mut [B], }
 
 // For symmetry:
 
@@ -1794,11 +1799,11 @@ macro_rules! __impl_slice_eq2 {
     }
 }
 
-__impl_slice_eq2! { RawVc<A, R>, Vec<B>, }
-__impl_slice_eq2! { RawVc<A, R>, &[B], }
-__impl_slice_eq2! { RawVc<A, R>, &mut [B], }
+__impl_slice_eq2! { CustomVc<A, R>, Vec<B>, }
+__impl_slice_eq2! { CustomVc<A, R>, &[B], }
+__impl_slice_eq2! { CustomVc<A, R>, &mut [B], }
 
-impl<A: PartialOrd, const R: usize> PartialOrd for RawVc<A, R> {
+impl<A: PartialOrd, const R: usize> PartialOrd for CustomVc<A, R> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self.old_len(), other.old_len()) {
             (0, 0) => self.new_tail.partial_cmp(&other.new_tail),
@@ -1824,7 +1829,7 @@ impl<A: PartialOrd, const R: usize> PartialOrd for RawVc<A, R> {
     }
 }
 
-impl<A: Ord, const R: usize> Ord for RawVc<A, R> {
+impl<A: Ord, const R: usize> Ord for CustomVc<A, R> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         match (self.old_len(), other.old_len()) {
@@ -1848,7 +1853,7 @@ impl<A: Ord, const R: usize> Ord for RawVc<A, R> {
     }
 }
 
-impl<A: Hash, const R: usize> Hash for RawVc<A, R> {
+impl<A: Hash, const R: usize> Hash for CustomVc<A, R> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.len().hash(state);
 
@@ -1859,7 +1864,7 @@ impl<A: Hash, const R: usize> Hash for RawVc<A, R> {
     }
 }
 
-impl<A, const R: usize> Index<usize> for RawVc<A, R> {
+impl<A, const R: usize> Index<usize> for CustomVc<A, R> {
     type Output = A;
 
     #[inline]
@@ -1868,14 +1873,14 @@ impl<A, const R: usize> Index<usize> for RawVc<A, R> {
     }
 }
 
-impl<A, const R: usize> IndexMut<usize> for RawVc<A, R> {
+impl<A, const R: usize> IndexMut<usize> for CustomVc<A, R> {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut A {
         self.get_mut(index).expect("Out of bounds access")
     }
 }
 
-impl<A, const R: usize> FromIterator<A> for RawVc<A, R> {
+impl<A, const R: usize> FromIterator<A> for CustomVc<A, R> {
     fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
         let iterator = iter.into_iter();
         let (lower, _) = iterator.size_hint();
@@ -1885,7 +1890,7 @@ impl<A, const R: usize> FromIterator<A> for RawVc<A, R> {
     }
 }
 
-impl<T, const R: usize> IntoIterator for RawVc<T, R> {
+impl<T, const R: usize> IntoIterator for CustomVc<T, R> {
     type Item = T;
     type IntoIter = iter::IntoIter<T>;
 
@@ -1897,7 +1902,7 @@ impl<T, const R: usize> IntoIterator for RawVc<T, R> {
     }
 }
 
-impl<'a, T, const R: usize> IntoIterator for &'a RawVc<T, R> {
+impl<'a, T, const R: usize> IntoIterator for &'a CustomVc<T, R> {
     type Item = &'a T;
     type IntoIter = iter::Iter<'a, T>;
 
@@ -1906,7 +1911,7 @@ impl<'a, T, const R: usize> IntoIterator for &'a RawVc<T, R> {
     }
 }
 
-impl<'a, T, const R: usize> IntoIterator for &'a mut RawVc<T, R> {
+impl<'a, T, const R: usize> IntoIterator for &'a mut CustomVc<T, R> {
     type Item = &'a mut T;
     type IntoIter = iter::IterMut<'a, T>;
 
@@ -1914,7 +1919,7 @@ impl<'a, T, const R: usize> IntoIterator for &'a mut RawVc<T, R> {
         self.iter_mut()
     }
 }
-impl<A, const R: usize> Extend<A> for RawVc<A, R> {
+impl<A, const R: usize> Extend<A> for CustomVc<A, R> {
     fn extend<T: IntoIterator<Item = A>>(&mut self, iter: T) {
         // Reserve the entire hint lower bound if the Vc is empty.
         // Otherwise reserve half the hint (rounded up), so the Vc
@@ -1933,25 +1938,25 @@ impl<A, const R: usize> Extend<A> for RawVc<A, R> {
     }
 }
 
-impl<'a, T: 'a + Copy, const R: usize> Extend<&'a T> for RawVc<T, R> {
+impl<'a, T: 'a + Copy, const R: usize> Extend<&'a T> for CustomVc<T, R> {
     fn extend<I: IntoIterator<Item = &'a T>>(&mut self, iter: I) {
         self.extend(iter.into_iter().cloned());
     }
 }
 
-impl<T: fmt::Debug, const R: usize> fmt::Debug for RawVc<T, R> {
+impl<T: fmt::Debug, const R: usize> fmt::Debug for CustomVc<T, R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self).finish()
     }
 }
 
-impl<T, const R: usize> From<Vec<T>> for RawVc<T, R> {
+impl<T, const R: usize> From<Vec<T>> for CustomVc<T, R> {
     fn from(other: Vec<T>) -> Self {
         Self::from(VecDeque::from(other))
     }
 }
 
-impl<T, const R: usize> From<VecDeque<T>> for RawVc<T, R> {
+impl<T, const R: usize> From<VecDeque<T>> for CustomVc<T, R> {
     fn from(other: VecDeque<T>) -> Self {
         Self {
             new_tail: other,
@@ -1960,14 +1965,14 @@ impl<T, const R: usize> From<VecDeque<T>> for RawVc<T, R> {
     }
 }
 
-impl<T, const R: usize> From<RawVc<T, R>> for Vec<T> {
-    fn from(other: RawVc<T, R>) -> Self {
+impl<T, const R: usize> From<CustomVc<T, R>> for Vec<T> {
+    fn from(other: CustomVc<T, R>) -> Self {
         VecDeque::from(other).into()
     }
 }
 
-impl<T, const R: usize> From<RawVc<T, R>> for VecDeque<T> {
-    fn from(mut other: RawVc<T, R>) -> Self {
+impl<T, const R: usize> From<CustomVc<T, R>> for VecDeque<T> {
+    fn from(mut other: CustomVc<T, R>) -> Self {
         if other.old_len() != 0 {
             other.carry_all();
         }
@@ -1979,7 +1984,7 @@ impl<T, const R: usize> From<RawVc<T, R>> for VecDeque<T> {
 // Amortization methods
 ////////////////////////////////////////////////////////////////////////////////
 
-impl<T, const R: usize> RawVc<T, R> {
+impl<T, const R: usize> CustomVc<T, R> {
     #[cold]
     #[inline(never)]
     pub(crate) fn carry_all(&mut self) {
