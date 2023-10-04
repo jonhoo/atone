@@ -92,11 +92,17 @@ const fn default_r() -> usize {
     return 8;
 }
 
-// TODO
-// What should the docs say here?
+/// A `VecDeque` (and `Vec`) variant that spreads resize load across pushes.
+///
+/// See the [crate-level documentation] for details.
+///
+/// [crate-level documentation]: index.html
 pub type Vc<T> = CustomVc<T, { default_r() }>;
 
 /// A `VecDeque` (and `Vec`) variant that spreads resize load across pushes.
+///
+/// This variant differs from [`Vc`] in that you can customize the incremental resize chunk size
+/// (`R`).
 ///
 /// See the [crate-level documentation] for details.
 ///
@@ -145,6 +151,7 @@ impl<T, const R: usize> CustomVc<T, R> {
         }
     }
 
+    /// The incremental resize chunk size used by this Vc
     pub const fn move_amount() -> usize {
         R
     }
@@ -1489,14 +1496,14 @@ impl<T, const R: usize> CustomVc<T, R> {
             // but we already have a mechanism for doing so -- old_head!
             let tail_of_old = keep.split_off(at);
             let give_away = mem::replace(&mut self.new_tail, keep);
-            CustomVc {
+            Self {
                 new_tail: give_away,
                 old_head: Some(tail_of_old),
             }
         } else {
             // we're splitting off from the tail, which means we're going to keep the old head.
             let give_away = self.new_tail.split_off(at);
-            CustomVc {
+            Self {
                 new_tail: give_away,
                 old_head: None,
             }
@@ -2062,7 +2069,7 @@ mod tests {
     #[test]
     fn test_split_push() {
         // the code below assumes that R is 4
-        // assert_eq!(crate::R, 4);
+        assert_eq!(Vc::<i32>::move_amount(), 4);
 
         let mut m = Vc::with_capacity(3);
         assert_eq!(m.capacity(), 3);
@@ -2586,5 +2593,14 @@ mod tests {
         assert_eq!(vs[2], 4);
         assert_eq!(vs[4], 8);
         assert_eq!(vs[6], 12);
+    }
+
+    #[test]
+    fn test_type_inference() {
+        // Simply makes sure that `Vc::default` can compile
+
+        let mut vc_default = Vc::default();
+        // This is needed to infer the T type
+        vc_default.push(0usize);
     }
 }
