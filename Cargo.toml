@@ -19,7 +19,7 @@ serde_ = { version = "1.0.114", default-features = false, optional = true, packa
 
 [dev-dependencies]
 lazy_static = "1.2"
-rand = { version = "0.7.3", features = ["small_rng"] }
+rand = { version = "0.8.0", features = ["small_rng"] }
 quickcheck = { version = "1.0", default-features = false }
 rayon_ = { version = "1.2.0", package = "rayon" }
 serde_test = "1.0.114"
@@ -30,7 +30,7 @@ serde = [ "serde_" ]
 rayon = [ "rayon_" ]
 
 [target.'cfg(not(target_env="msvc"))'.dev-dependencies]
-jemallocator = "0.3"
+jemallocator = "0.5"
 
 [package.metadata.docs.rs]
 features = ["rayon", "serde"]
