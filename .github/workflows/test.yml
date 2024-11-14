@@ -101,6 +101,6 @@ jobs:
         env:
           QUICKCHECK_TESTS: 500
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           fail_ci_if_error: true
