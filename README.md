@@ -1,6 +1,6 @@
 [![Crates.io](https://img.shields.io/crates/v/atone.svg)](https://crates.io/crates/atone)
 [![Documentation](https://docs.rs/atone/badge.svg)](https://docs.rs/atone/)
-[![Coverage Status](https://codecov.io/gh/jonhoo/atone/branch/master/graph/badge.svg)](https://codecov.io/gh/jonhoo/atone)
+[![codecov](https://codecov.io/gh/jonhoo/atone/graph/badge.svg?token=1HqvHNePdL)](https://codecov.io/gh/jonhoo/atone)
 ![Maintenance](https://img.shields.io/badge/maintenance-experimental-blue.svg)
 
 A `VecDeque` (and `Vec`) variant that spreads resize load across pushes.
