@@ -2536,7 +2536,7 @@ mod tests {
         }
         assert!(vs.is_atoning());
 
-        vs[9];
+        let _ = vs[9];
     }
 
     #[test]
