@@ -83,8 +83,9 @@ quickcheck! {
     fn with_cap(cap: u8) -> bool {
         let cap = cap as usize;
         let vs: Vc<u8> = Vc::with_capacity(cap);
-        println!("wish: {}, got: {} (diff: {})", cap, vs.capacity(), vs.capacity() as isize - cap as isize);
-        vs.capacity() >= cap
+        let vs_cap = vs.capacity();
+        println!("wish: {}, got: {} (diff: {})", cap, vs_cap, vs_cap as isize - cap as isize);
+        vs_cap >= cap
     }
 }
 
