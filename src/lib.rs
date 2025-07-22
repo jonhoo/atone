@@ -575,7 +575,7 @@ impl<T, const R: usize> CustomVc<T, R> {
             // We move R items on each insert.
             // That means we need to accomodate another
             // lo.table.len() / R (rounded up) inserts to move them all.
-            need += (old_len + R - 1) / R;
+            need += old_len.div_ceil(R);
         } else if min_capacity <= need {
             self.new_tail.shrink_to_fit();
         }
@@ -985,7 +985,7 @@ impl<T, const R: usize> CustomVc<T, R> {
     where
         T: PartialEq<T>,
     {
-        self.new_tail.contains(x) || self.old_head.as_ref().map_or(false, |v| v.contains(x))
+        self.new_tail.contains(x) || self.old_head.as_ref().is_some_and(|v| v.contains(x))
     }
 
     /// Provides a reference to the front element, or `None` if the `Vc` is
@@ -1599,8 +1599,7 @@ impl<T, const R: usize> CustomVc<T, R> {
         let need = self.new_tail.len();
         //  - We move R items on each push, so to move len items takes
         //    len / R pushes (rounded up!)
-        //  - Since we want to round up, we pull the old +R-1 trick
-        let pushes = (self.new_tail.len() + R - 1) / R;
+        let pushes = self.new_tail.len().div_ceil(R);
         //  - That's len + len/R
         //    Which is == R*len/R + len/R
         //    Which is == ((R+1)*len)/R
@@ -1935,7 +1934,7 @@ impl<A, const R: usize> Extend<A> for CustomVc<A, R> {
         let reserve = if self.is_empty() {
             iter.size_hint().0
         } else {
-            (iter.size_hint().0 + 1) / 2
+            iter.size_hint().0.div_ceil(2)
         };
         self.reserve(reserve);
         iter.for_each(move |v| {
