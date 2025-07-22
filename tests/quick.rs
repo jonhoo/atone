@@ -8,8 +8,6 @@ use atone::Vc;
 use quickcheck::Arbitrary;
 use quickcheck::Gen;
 
-use rand::Rng;
-
 use std::cmp::min;
 use std::collections::HashSet;
 use std::collections::VecDeque;
@@ -17,10 +15,10 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::Deref;
 
-fn set<'a, T: 'a, I>(iter: I) -> HashSet<T>
+fn set<'a, T, I>(iter: I) -> HashSet<T>
 where
     I: IntoIterator<Item = &'a T>,
-    T: Copy + Hash + Eq,
+    T: Copy + Hash + Eq + 'a,
 {
     iter.into_iter().cloned().collect()
 }
@@ -67,7 +65,7 @@ quickcheck! {
             }
         }
         let elements = &set(&push) - &set(&remove);
-        elements.iter().all(|v| vs.contains(v)) && vs.iter().all(|v| elements.contains(&v))
+        elements.iter().all(|v| vs.contains(v)) && vs.iter().all(|v| elements.contains(v))
     }
 
     fn push_retain(push: Vec<u8>, retain: Vec<u8>) -> bool {
@@ -78,7 +76,7 @@ quickcheck! {
         vs.retain(|v| retain.contains(v));
         let push = set(&push);
         let retain = set(&retain);
-        let elements: Vec<_> = push.intersection(&retain).into_iter().collect();
+        let elements: Vec<_> = push.intersection(&retain).collect();
         elements.iter().all(|v| vs.contains(v)) && vs.iter().all(|v| elements.contains(&v))
     }
 

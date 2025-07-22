@@ -2030,7 +2030,6 @@ mod tests {
     use super::Vc;
     use std::cell::RefCell;
     use std::collections::VecDeque;
-    use std::usize;
     use std::vec::Vec;
 
     #[test]
@@ -2169,7 +2168,7 @@ mod tests {
         assert!(m2.iter().copied().eq(1..=8));
     }
 
-    thread_local! { static DROP_VECTOR: RefCell<Vec<i32>> = RefCell::new(Vec::new()) }
+    thread_local! { static DROP_VECTOR: RefCell<Vec<i32>> = const {RefCell::new(Vec::new())} }
 
     #[derive(Hash, PartialEq, Eq)]
     struct Droppable {
@@ -2449,8 +2448,8 @@ mod tests {
         vs.push(1);
         vs.push(2);
 
-        assert_eq!(format!("{:?}", vs), "[1, 2]");
-        assert_eq!(format!("{:?}", empty), "[]");
+        assert_eq!(format!("{vs:?}"), "[1, 2]");
+        assert_eq!(format!("{empty:?}"), "[]");
     }
 
     #[test]
