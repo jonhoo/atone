@@ -285,11 +285,8 @@ impl<T, const R: usize> CustomVc<T, R> {
         let old_len = self.old_len();
         if index < old_len {
             // index < old_len implies old_len > 0 and index in-bounds
-            Some(
-                unsafe { self.old_ref() }
-                    .get(index)
-                    .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() }),
-            )
+            let old = unsafe { self.old_ref() };
+            Some(unsafe { old.get(index).unwrap_unchecked() })
         } else {
             self.new_tail.get(index - old_len)
         }
@@ -318,11 +315,8 @@ impl<T, const R: usize> CustomVc<T, R> {
         let old_len = self.old_len();
         if index < old_len {
             // index < old_len implies old_len > 0 and index in-bounds
-            Some(
-                unsafe { self.old_mut() }
-                    .get_mut(index)
-                    .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() }),
-            )
+            let old = unsafe { self.old_mut() };
+            Some(unsafe { old.get_mut(index).unwrap_unchecked() })
         } else {
             self.new_tail.get_mut(index - old_len)
         }
@@ -364,18 +358,12 @@ impl<T, const R: usize> CustomVc<T, R> {
         } else if i_in_old {
             // NOTE: cannot use old_mut() here because of split borrows
             debug_assert!(self.old_head.is_some());
-            let old_mut = self
-                .old_head
-                .as_mut()
-                .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+            let old_mut = unsafe { self.old_head.as_mut().unwrap_unchecked() };
             mem::swap(&mut old_mut[i], &mut self.new_tail[j - old_len])
         } else {
             // j must be in old, so old must be non-empty
             debug_assert!(self.old_head.is_some());
-            let old_mut = self
-                .old_head
-                .as_mut()
-                .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+            let old_mut = unsafe { self.old_head.as_mut().unwrap_unchecked() };
             mem::swap(&mut old_mut[j], &mut self.new_tail[i - old_len])
         }
     }
@@ -823,10 +811,7 @@ impl<T, const R: usize> CustomVc<T, R> {
         let (head, tail) = self.range_start_end_split(range);
         let head = if let Some((start_incl, end_excl)) = head {
             debug_assert!(self.old_head.is_some());
-            let old_mut = self
-                .old_head
-                .as_ref()
-                .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+            let old_mut = unsafe { self.old_head.as_ref().unwrap_unchecked() };
             Some(old_mut.range(start_incl..end_excl))
         } else {
             None
@@ -872,10 +857,7 @@ impl<T, const R: usize> CustomVc<T, R> {
         let (head, tail) = self.range_start_end_split(range);
         let head = if let Some((start_incl, end_excl)) = head {
             debug_assert!(self.old_head.is_some());
-            let old_mut = self
-                .old_head
-                .as_mut()
-                .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+            let old_mut = unsafe { self.old_head.as_mut().unwrap_unchecked() };
             Some(old_mut.range_mut(start_incl..end_excl))
         } else {
             None
@@ -928,10 +910,7 @@ impl<T, const R: usize> CustomVc<T, R> {
             // TODO: take_old when drained if start_incl == 0 && end_excl >= old_len
             // NOTE: cannot use old_mut() here because of split borrows
             debug_assert!(self.old_head.is_some());
-            let old_mut = self
-                .old_head
-                .as_mut()
-                .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+            let old_mut = unsafe { self.old_head.as_mut().unwrap_unchecked() };
             Some(old_mut.drain(start_incl..end_excl))
         } else {
             None
@@ -1205,17 +1184,13 @@ impl<T, const R: usize> CustomVc<T, R> {
     #[inline]
     unsafe fn old_ref(&self) -> &VecDeque<T> {
         debug_assert!(self.old_head.is_some());
-        self.old_head
-            .as_ref()
-            .unwrap_or_else(|| core::hint::unreachable_unchecked())
+        unsafe { self.old_head.as_ref().unwrap_unchecked() }
     }
 
     #[inline]
     unsafe fn old_mut(&mut self) -> &mut VecDeque<T> {
         debug_assert!(self.old_head.is_some());
-        self.old_head
-            .as_mut()
-            .unwrap_or_else(|| core::hint::unreachable_unchecked())
+        unsafe { self.old_head.as_mut().unwrap_unchecked() }
     }
 
     #[inline]
@@ -1352,9 +1327,8 @@ impl<T, const R: usize> CustomVc<T, R> {
             let old_len = this.old_len();
             if index < old_len {
                 // index < old_len implies old_len > 0 and index in-bounds
-                let shift = unsafe { this.old_mut() }
-                    .pop_back()
-                    .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+                let old = unsafe { this.old_mut() };
+                let shift = unsafe { old.pop_back().unwrap_unchecked() };
                 this.new_tail.push_front(shift);
                 unsafe { this.old_mut() }.insert(index, value);
             } else {
@@ -1578,9 +1552,7 @@ impl<T, const R: usize> CustomVc<T, R> {
     }
 
     unsafe fn take_old_unchecked(&mut self) -> VecDeque<T> {
-        self.old_head
-            .take()
-            .unwrap_or_else(|| core::hint::unreachable_unchecked())
+        unsafe { self.old_head.take().unwrap_unchecked() }
     }
 
     // This may panic or abort

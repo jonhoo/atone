@@ -13,8 +13,8 @@ fn size_hint(
         let (lo2, hi2) = tail;
 
         // all vec_deque iterators are ExactSizeIterator
-        let hi1 = hi1.unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
-        let hi2 = hi2.unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+        let hi1 = unsafe { hi1.unwrap_unchecked() };
+        let hi2 = unsafe { hi2.unwrap_unchecked() };
 
         (lo1 + lo2, Some(hi1 + hi2))
     } else {
