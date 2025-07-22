@@ -57,10 +57,8 @@
 #![warn(rustdoc::all)]
 
 #[cfg(test)]
-#[macro_use]
 extern crate std;
 
-#[cfg_attr(test, macro_use)]
 extern crate alloc;
 
 use core::cmp::Ordering;
@@ -2031,6 +2029,7 @@ mod tests {
     use std::cell::RefCell;
     use std::collections::VecDeque;
     use std::vec::Vec;
+    use std::{format, thread_local, vec};
 
     #[test]
     fn zero_capacities() {
