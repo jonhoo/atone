@@ -2033,13 +2033,13 @@ mod tests {
     use std::vec::Vec;
 
     #[test]
-    fn test_zero_capacities() {
+    fn zero_capacities() {
         assert_eq!(VecDeque::<i32>::with_capacity(0).capacity(), 0);
         assert_eq!(Vc::<i32>::with_capacity(0).capacity(), 0);
     }
 
     #[test]
-    fn test_create_capacity_zero() {
+    fn create_capacity_zero() {
         let mut m = Vc::with_capacity(0);
 
         m.push(1);
@@ -2053,7 +2053,7 @@ mod tests {
     }
 
     #[test]
-    fn test_push() {
+    fn push() {
         let mut m = Vc::new();
         assert_eq!(m.len(), 0);
         m.push(1);
@@ -2065,7 +2065,7 @@ mod tests {
     }
 
     #[test]
-    fn test_split_push() {
+    fn split_push() {
         // the code below assumes that R is 4
         assert_eq!(Vc::<i32>::move_amount(), 4);
 
@@ -2144,7 +2144,7 @@ mod tests {
     }
 
     #[test]
-    fn test_clone() {
+    fn clone() {
         let mut m = Vc::new();
         for i in 1..=8 {
             assert_eq!(m.len(), i - 1);
@@ -2156,7 +2156,7 @@ mod tests {
     }
 
     #[test]
-    fn test_clone_from() {
+    fn clone_from() {
         let mut m = Vc::new();
         let mut m2 = Vc::new();
         for i in 1..=8 {
@@ -2200,7 +2200,7 @@ mod tests {
     }
 
     #[test]
-    fn test_drops() {
+    fn drops() {
         DROP_VECTOR.with(|slot| {
             *slot.borrow_mut() = vec![0; 100];
         });
@@ -2254,7 +2254,7 @@ mod tests {
     }
 
     #[test]
-    fn test_into_iter_drops() {
+    fn into_iter_drops() {
         DROP_VECTOR.with(|v| {
             *v.borrow_mut() = vec![0; 100];
         });
@@ -2312,13 +2312,13 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_empty_remove() {
+    fn empty_remove() {
         let mut vs: Vc<i32> = Vc::new();
         vs.remove(0);
     }
 
     #[test]
-    fn test_empty_iter() {
+    fn empty_iter() {
         let mut vs: Vc<i32> = Vc::new();
         assert_eq!(vs.drain(..).next(), None);
         assert_eq!(vs.iter().next(), None);
@@ -2330,13 +2330,13 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_empty_swap_remove() {
+    fn empty_swap_remove() {
         let mut vs: Vc<i32> = Vc::new();
         vs.swap_remove(0);
     }
 
     #[test]
-    fn test_lots_of_pushes() {
+    fn lots_of_pushes() {
         let mut vs = Vc::new();
 
         #[cfg(not(any(tarpaulin, miri)))]
@@ -2401,7 +2401,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_empty() {
+    fn is_empty() {
         let mut vs = Vc::with_capacity(4);
         vs.push(1);
         assert!(!vs.is_empty());
@@ -2410,7 +2410,7 @@ mod tests {
     }
 
     #[test]
-    fn test_iterate() {
+    fn iterate() {
         let mut vs = Vc::with_capacity(4);
         for i in 0..=36 {
             vs.push(i * 2);
@@ -2422,7 +2422,7 @@ mod tests {
     }
 
     #[test]
-    fn test_eq() {
+    fn eq() {
         let mut vs1 = Vc::new();
         for v in (1..).take(8) {
             vs1.push(v);
@@ -2441,7 +2441,7 @@ mod tests {
     }
 
     #[test]
-    fn test_show() {
+    fn show() {
         let mut vs = Vc::new();
         let empty: Vc<i32> = Vc::new();
 
@@ -2453,7 +2453,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_iter() {
+    fn from_iter() {
         let xs = 0..8;
 
         let vs: Vc<_> = xs.clone().collect();
@@ -2461,7 +2461,7 @@ mod tests {
     }
 
     #[test]
-    fn test_size_hint() {
+    fn size_hint() {
         let xs = 0..8;
 
         let vs: Vc<_> = xs.clone().collect();
@@ -2474,7 +2474,7 @@ mod tests {
     }
 
     #[test]
-    fn test_iter_len() {
+    fn iter_len() {
         let xs = 0..8;
 
         let vs: Vc<_> = xs.clone().collect();
@@ -2487,7 +2487,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mut_size_hint() {
+    fn mut_size_hint() {
         let xs = 0..8;
 
         let mut vs: Vc<_> = xs.clone().collect();
@@ -2500,7 +2500,7 @@ mod tests {
     }
 
     #[test]
-    fn test_iter_mut_len() {
+    fn iter_mut_len() {
         let xs = 0..8;
 
         let mut vs: Vc<_> = xs.clone().collect();
@@ -2513,7 +2513,7 @@ mod tests {
     }
 
     #[test]
-    fn test_index() {
+    fn index() {
         let mut vs = Vc::with_capacity(7);
 
         for i in 1..=8 {
@@ -2526,7 +2526,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_index_nonexistent() {
+    fn index_nonexistent() {
         let mut vs = Vc::new();
 
         for i in 1..=8 {
@@ -2538,7 +2538,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extend_ref() {
+    fn extend_ref() {
         let mut a = Vc::new();
         a.push("one");
         let mut b = Vc::new();
@@ -2554,7 +2554,7 @@ mod tests {
     }
 
     #[test]
-    fn test_capacity_not_less_than_len() {
+    fn capacity_not_less_than_len() {
         let mut a = Vc::new();
         let mut item = 0;
 
@@ -2579,7 +2579,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retain() {
+    fn retain() {
         let mut vs: Vc<i32> = Vc::new();
         for x in 0..130 {
             vs.push(x);
@@ -2594,7 +2594,7 @@ mod tests {
     }
 
     #[test]
-    fn test_type_inference() {
+    fn type_inference() {
         // Simply makes sure that `Vc::default` can compile
 
         let mut vc_default = Vc::default();
