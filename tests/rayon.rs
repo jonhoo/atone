@@ -1,7 +1,6 @@
 #![cfg(feature = "rayon")]
 
-#[macro_use]
-extern crate lazy_static;
+use lazy_static::lazy_static;
 
 use atone::Vc;
 use rayon_::iter::{

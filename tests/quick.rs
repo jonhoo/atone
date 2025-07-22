@@ -1,7 +1,6 @@
 #![cfg(not(miri))]
 
-#[macro_use]
-extern crate quickcheck;
+use quickcheck::quickcheck;
 
 use atone::Vc;
 
