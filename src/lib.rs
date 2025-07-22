@@ -543,9 +543,9 @@ impl<T, const R: usize> CustomVc<T, R> {
     /// let mut buf = Vc::with_capacity(15);
     /// buf.extend(0..4);
     /// assert_eq!(buf.capacity(), 15);
-    /// // buf.shrink_to(6);
+    /// buf.shrink_to(6);
     /// assert!(buf.capacity() >= 6);
-    /// // buf.shrink_to(0);
+    /// buf.shrink_to(0);
     /// assert!(buf.capacity() >= 4);
     /// ```
     fn shrink_to(&mut self, min_capacity: usize) {
@@ -565,12 +565,9 @@ impl<T, const R: usize> CustomVc<T, R> {
         } else if min_capacity <= need {
             self.new_tail.shrink_to_fit();
         }
-        let _min_size = usize::max(need, min_capacity);
+        let min_size = usize::max(need, min_capacity);
 
-        // FIXME: for now, this is a no-op
-        // TODO: use VecDeque::shrink_to once available
-        //       then, uncomment relevant code in doctest
-        // self.new_tail.shrink_to(min_size);
+        self.new_tail.shrink_to(min_size);
     }
 
     /// Shortens the `Vc`, keeping the first `len` elements and dropping
