@@ -112,7 +112,7 @@ jobs:
     # https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability
     strategy:
       matrix:
-        msrv: ["1.59"] # deque_range
+        msrv: ["1.73"] # uXX::div_ceil
     name: ubuntu / ${{ matrix.msrv }}
     steps:
       - uses: actions/checkout@v4
