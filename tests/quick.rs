@@ -1,14 +1,11 @@
 #![cfg(not(miri))]
 
-#[macro_use]
-extern crate quickcheck;
+use quickcheck::quickcheck;
 
 use atone::Vc;
 
 use quickcheck::Arbitrary;
 use quickcheck::Gen;
-
-use rand::Rng;
 
 use std::cmp::min;
 use std::collections::HashSet;
@@ -17,10 +14,10 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::Deref;
 
-fn set<'a, T: 'a, I>(iter: I) -> HashSet<T>
+fn set<'a, T, I>(iter: I) -> HashSet<T>
 where
     I: IntoIterator<Item = &'a T>,
-    T: Copy + Hash + Eq,
+    T: Copy + Hash + Eq + 'a,
 {
     iter.into_iter().cloned().collect()
 }
@@ -67,7 +64,7 @@ quickcheck! {
             }
         }
         let elements = &set(&push) - &set(&remove);
-        elements.iter().all(|v| vs.contains(v)) && vs.iter().all(|v| elements.contains(&v))
+        elements.iter().all(|v| vs.contains(v)) && vs.iter().all(|v| elements.contains(v))
     }
 
     fn push_retain(push: Vec<u8>, retain: Vec<u8>) -> bool {
@@ -78,15 +75,16 @@ quickcheck! {
         vs.retain(|v| retain.contains(v));
         let push = set(&push);
         let retain = set(&retain);
-        let elements: Vec<_> = push.intersection(&retain).into_iter().collect();
+        let elements: Vec<_> = push.intersection(&retain).collect();
         elements.iter().all(|v| vs.contains(v)) && vs.iter().all(|v| elements.contains(&v))
     }
 
     fn with_cap(cap: u8) -> bool {
         let cap = cap as usize;
         let vs: Vc<u8> = Vc::with_capacity(cap);
-        println!("wish: {}, got: {} (diff: {})", cap, vs.capacity(), vs.capacity() as isize - cap as isize);
-        vs.capacity() >= cap
+        let vs_cap = vs.capacity();
+        println!("wish: {}, got: {} (diff: {})", cap, vs_cap, vs_cap as isize - cap as isize);
+        vs_cap >= cap
     }
 }
 

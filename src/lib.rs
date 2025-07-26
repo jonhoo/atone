@@ -57,10 +57,8 @@
 #![warn(rustdoc::all)]
 
 #[cfg(test)]
-#[macro_use]
 extern crate std;
 
-#[cfg_attr(test, macro_use)]
 extern crate alloc;
 
 use core::cmp::Ordering;
@@ -287,11 +285,8 @@ impl<T, const R: usize> CustomVc<T, R> {
         let old_len = self.old_len();
         if index < old_len {
             // index < old_len implies old_len > 0 and index in-bounds
-            Some(
-                unsafe { self.old_ref() }
-                    .get(index)
-                    .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() }),
-            )
+            let old = unsafe { self.old_ref() };
+            Some(unsafe { old.get(index).unwrap_unchecked() })
         } else {
             self.new_tail.get(index - old_len)
         }
@@ -320,11 +315,8 @@ impl<T, const R: usize> CustomVc<T, R> {
         let old_len = self.old_len();
         if index < old_len {
             // index < old_len implies old_len > 0 and index in-bounds
-            Some(
-                unsafe { self.old_mut() }
-                    .get_mut(index)
-                    .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() }),
-            )
+            let old = unsafe { self.old_mut() };
+            Some(unsafe { old.get_mut(index).unwrap_unchecked() })
         } else {
             self.new_tail.get_mut(index - old_len)
         }
@@ -366,18 +358,12 @@ impl<T, const R: usize> CustomVc<T, R> {
         } else if i_in_old {
             // NOTE: cannot use old_mut() here because of split borrows
             debug_assert!(self.old_head.is_some());
-            let old_mut = self
-                .old_head
-                .as_mut()
-                .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+            let old_mut = unsafe { self.old_head.as_mut().unwrap_unchecked() };
             mem::swap(&mut old_mut[i], &mut self.new_tail[j - old_len])
         } else {
             // j must be in old, so old must be non-empty
             debug_assert!(self.old_head.is_some());
-            let old_mut = self
-                .old_head
-                .as_mut()
-                .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+            let old_mut = unsafe { self.old_head.as_mut().unwrap_unchecked() };
             mem::swap(&mut old_mut[j], &mut self.new_tail[i - old_len])
         }
     }
@@ -557,12 +543,12 @@ impl<T, const R: usize> CustomVc<T, R> {
     /// let mut buf = Vc::with_capacity(15);
     /// buf.extend(0..4);
     /// assert_eq!(buf.capacity(), 15);
-    /// // buf.shrink_to(6);
+    /// buf.shrink_to(6);
     /// assert!(buf.capacity() >= 6);
-    /// // buf.shrink_to(0);
+    /// buf.shrink_to(0);
     /// assert!(buf.capacity() >= 4);
     /// ```
-    fn shrink_to(&mut self, min_capacity: usize) {
+    pub fn shrink_to(&mut self, min_capacity: usize) {
         // Calculate the minimal number of elements that we need to reserve
         // space for.
         let mut need = self.new_tail.len();
@@ -575,16 +561,13 @@ impl<T, const R: usize> CustomVc<T, R> {
             // We move R items on each insert.
             // That means we need to accomodate another
             // lo.table.len() / R (rounded up) inserts to move them all.
-            need += (old_len + R - 1) / R;
+            need += old_len.div_ceil(R);
         } else if min_capacity <= need {
             self.new_tail.shrink_to_fit();
         }
-        let _min_size = usize::max(need, min_capacity);
+        let min_size = usize::max(need, min_capacity);
 
-        // FIXME: for now, this is a no-op
-        // TODO: use VecDeque::shrink_to once available
-        //       then, uncomment relevant code in doctest
-        // self.new_tail.shrink_to(min_size);
+        self.new_tail.shrink_to(min_size);
     }
 
     /// Shortens the `Vc`, keeping the first `len` elements and dropping
@@ -825,10 +808,7 @@ impl<T, const R: usize> CustomVc<T, R> {
         let (head, tail) = self.range_start_end_split(range);
         let head = if let Some((start_incl, end_excl)) = head {
             debug_assert!(self.old_head.is_some());
-            let old_mut = self
-                .old_head
-                .as_ref()
-                .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+            let old_mut = unsafe { self.old_head.as_ref().unwrap_unchecked() };
             Some(old_mut.range(start_incl..end_excl))
         } else {
             None
@@ -874,10 +854,7 @@ impl<T, const R: usize> CustomVc<T, R> {
         let (head, tail) = self.range_start_end_split(range);
         let head = if let Some((start_incl, end_excl)) = head {
             debug_assert!(self.old_head.is_some());
-            let old_mut = self
-                .old_head
-                .as_mut()
-                .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+            let old_mut = unsafe { self.old_head.as_mut().unwrap_unchecked() };
             Some(old_mut.range_mut(start_incl..end_excl))
         } else {
             None
@@ -930,10 +907,7 @@ impl<T, const R: usize> CustomVc<T, R> {
             // TODO: take_old when drained if start_incl == 0 && end_excl >= old_len
             // NOTE: cannot use old_mut() here because of split borrows
             debug_assert!(self.old_head.is_some());
-            let old_mut = self
-                .old_head
-                .as_mut()
-                .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+            let old_mut = unsafe { self.old_head.as_mut().unwrap_unchecked() };
             Some(old_mut.drain(start_incl..end_excl))
         } else {
             None
@@ -985,7 +959,7 @@ impl<T, const R: usize> CustomVc<T, R> {
     where
         T: PartialEq<T>,
     {
-        self.new_tail.contains(x) || self.old_head.as_ref().map_or(false, |v| v.contains(x))
+        self.new_tail.contains(x) || self.old_head.as_ref().is_some_and(|v| v.contains(x))
     }
 
     /// Provides a reference to the front element, or `None` if the `Vc` is
@@ -1207,17 +1181,13 @@ impl<T, const R: usize> CustomVc<T, R> {
     #[inline]
     unsafe fn old_ref(&self) -> &VecDeque<T> {
         debug_assert!(self.old_head.is_some());
-        self.old_head
-            .as_ref()
-            .unwrap_or_else(|| core::hint::unreachable_unchecked())
+        unsafe { self.old_head.as_ref().unwrap_unchecked() }
     }
 
     #[inline]
     unsafe fn old_mut(&mut self) -> &mut VecDeque<T> {
         debug_assert!(self.old_head.is_some());
-        self.old_head
-            .as_mut()
-            .unwrap_or_else(|| core::hint::unreachable_unchecked())
+        unsafe { self.old_head.as_mut().unwrap_unchecked() }
     }
 
     #[inline]
@@ -1354,9 +1324,8 @@ impl<T, const R: usize> CustomVc<T, R> {
             let old_len = this.old_len();
             if index < old_len {
                 // index < old_len implies old_len > 0 and index in-bounds
-                let shift = unsafe { this.old_mut() }
-                    .pop_back()
-                    .unwrap_or_else(|| unsafe { core::hint::unreachable_unchecked() });
+                let old = unsafe { this.old_mut() };
+                let shift = unsafe { old.pop_back().unwrap_unchecked() };
                 this.new_tail.push_front(shift);
                 unsafe { this.old_mut() }.insert(index, value);
             } else {
@@ -1580,9 +1549,7 @@ impl<T, const R: usize> CustomVc<T, R> {
     }
 
     unsafe fn take_old_unchecked(&mut self) -> VecDeque<T> {
-        self.old_head
-            .take()
-            .unwrap_or_else(|| core::hint::unreachable_unchecked())
+        unsafe { self.old_head.take().unwrap_unchecked() }
     }
 
     // This may panic or abort
@@ -1599,8 +1566,7 @@ impl<T, const R: usize> CustomVc<T, R> {
         let need = self.new_tail.len();
         //  - We move R items on each push, so to move len items takes
         //    len / R pushes (rounded up!)
-        //  - Since we want to round up, we pull the old +R-1 trick
-        let pushes = (self.new_tail.len() + R - 1) / R;
+        let pushes = self.new_tail.len().div_ceil(R);
         //  - That's len + len/R
         //    Which is == R*len/R + len/R
         //    Which is == ((R+1)*len)/R
@@ -1935,7 +1901,7 @@ impl<A, const R: usize> Extend<A> for CustomVc<A, R> {
         let reserve = if self.is_empty() {
             iter.size_hint().0
         } else {
-            (iter.size_hint().0 + 1) / 2
+            iter.size_hint().0.div_ceil(2)
         };
         self.reserve(reserve);
         iter.for_each(move |v| {
@@ -2031,17 +1997,17 @@ mod tests {
     use super::Vc;
     use std::cell::RefCell;
     use std::collections::VecDeque;
-    use std::usize;
     use std::vec::Vec;
+    use std::{format, thread_local, vec};
 
     #[test]
-    fn test_zero_capacities() {
+    fn zero_capacities() {
         assert_eq!(VecDeque::<i32>::with_capacity(0).capacity(), 0);
         assert_eq!(Vc::<i32>::with_capacity(0).capacity(), 0);
     }
 
     #[test]
-    fn test_create_capacity_zero() {
+    fn create_capacity_zero() {
         let mut m = Vc::with_capacity(0);
 
         m.push(1);
@@ -2055,7 +2021,7 @@ mod tests {
     }
 
     #[test]
-    fn test_push() {
+    fn push() {
         let mut m = Vc::new();
         assert_eq!(m.len(), 0);
         m.push(1);
@@ -2067,7 +2033,7 @@ mod tests {
     }
 
     #[test]
-    fn test_split_push() {
+    fn split_push() {
         // the code below assumes that R is 4
         assert_eq!(Vc::<i32>::move_amount(), 4);
 
@@ -2146,7 +2112,7 @@ mod tests {
     }
 
     #[test]
-    fn test_clone() {
+    fn clone() {
         let mut m = Vc::new();
         for i in 1..=8 {
             assert_eq!(m.len(), i - 1);
@@ -2158,7 +2124,7 @@ mod tests {
     }
 
     #[test]
-    fn test_clone_from() {
+    fn clone_from() {
         let mut m = Vc::new();
         let mut m2 = Vc::new();
         for i in 1..=8 {
@@ -2170,7 +2136,7 @@ mod tests {
         assert!(m2.iter().copied().eq(1..=8));
     }
 
-    thread_local! { static DROP_VECTOR: RefCell<Vec<i32>> = RefCell::new(Vec::new()) }
+    thread_local! { static DROP_VECTOR: RefCell<Vec<i32>> = const {RefCell::new(Vec::new())} }
 
     #[derive(Hash, PartialEq, Eq)]
     struct Droppable {
@@ -2202,7 +2168,7 @@ mod tests {
     }
 
     #[test]
-    fn test_drops() {
+    fn drops() {
         DROP_VECTOR.with(|slot| {
             *slot.borrow_mut() = vec![0; 100];
         });
@@ -2256,7 +2222,7 @@ mod tests {
     }
 
     #[test]
-    fn test_into_iter_drops() {
+    fn into_iter_drops() {
         DROP_VECTOR.with(|v| {
             *v.borrow_mut() = vec![0; 100];
         });
@@ -2314,13 +2280,13 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_empty_remove() {
+    fn empty_remove() {
         let mut vs: Vc<i32> = Vc::new();
         vs.remove(0);
     }
 
     #[test]
-    fn test_empty_iter() {
+    fn empty_iter() {
         let mut vs: Vc<i32> = Vc::new();
         assert_eq!(vs.drain(..).next(), None);
         assert_eq!(vs.iter().next(), None);
@@ -2332,13 +2298,13 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_empty_swap_remove() {
+    fn empty_swap_remove() {
         let mut vs: Vc<i32> = Vc::new();
         vs.swap_remove(0);
     }
 
     #[test]
-    fn test_lots_of_pushes() {
+    fn lots_of_pushes() {
         let mut vs = Vc::new();
 
         #[cfg(not(any(tarpaulin, miri)))]
@@ -2403,7 +2369,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_empty() {
+    fn is_empty() {
         let mut vs = Vc::with_capacity(4);
         vs.push(1);
         assert!(!vs.is_empty());
@@ -2412,7 +2378,7 @@ mod tests {
     }
 
     #[test]
-    fn test_iterate() {
+    fn iterate() {
         let mut vs = Vc::with_capacity(4);
         for i in 0..=36 {
             vs.push(i * 2);
@@ -2424,7 +2390,7 @@ mod tests {
     }
 
     #[test]
-    fn test_eq() {
+    fn eq() {
         let mut vs1 = Vc::new();
         for v in (1..).take(8) {
             vs1.push(v);
@@ -2443,19 +2409,19 @@ mod tests {
     }
 
     #[test]
-    fn test_show() {
+    fn show() {
         let mut vs = Vc::new();
         let empty: Vc<i32> = Vc::new();
 
         vs.push(1);
         vs.push(2);
 
-        assert_eq!(format!("{:?}", vs), "[1, 2]");
-        assert_eq!(format!("{:?}", empty), "[]");
+        assert_eq!(format!("{vs:?}"), "[1, 2]");
+        assert_eq!(format!("{empty:?}"), "[]");
     }
 
     #[test]
-    fn test_from_iter() {
+    fn from_iter() {
         let xs = 0..8;
 
         let vs: Vc<_> = xs.clone().collect();
@@ -2463,7 +2429,7 @@ mod tests {
     }
 
     #[test]
-    fn test_size_hint() {
+    fn size_hint() {
         let xs = 0..8;
 
         let vs: Vc<_> = xs.clone().collect();
@@ -2476,7 +2442,7 @@ mod tests {
     }
 
     #[test]
-    fn test_iter_len() {
+    fn iter_len() {
         let xs = 0..8;
 
         let vs: Vc<_> = xs.clone().collect();
@@ -2489,7 +2455,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mut_size_hint() {
+    fn mut_size_hint() {
         let xs = 0..8;
 
         let mut vs: Vc<_> = xs.clone().collect();
@@ -2502,7 +2468,7 @@ mod tests {
     }
 
     #[test]
-    fn test_iter_mut_len() {
+    fn iter_mut_len() {
         let xs = 0..8;
 
         let mut vs: Vc<_> = xs.clone().collect();
@@ -2515,7 +2481,7 @@ mod tests {
     }
 
     #[test]
-    fn test_index() {
+    fn index() {
         let mut vs = Vc::with_capacity(7);
 
         for i in 1..=8 {
@@ -2528,7 +2494,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_index_nonexistent() {
+    fn index_nonexistent() {
         let mut vs = Vc::new();
 
         for i in 1..=8 {
@@ -2536,11 +2502,11 @@ mod tests {
         }
         assert!(vs.is_atoning());
 
-        vs[9];
+        let _ = vs[9];
     }
 
     #[test]
-    fn test_extend_ref() {
+    fn extend_ref() {
         let mut a = Vc::new();
         a.push("one");
         let mut b = Vc::new();
@@ -2556,7 +2522,7 @@ mod tests {
     }
 
     #[test]
-    fn test_capacity_not_less_than_len() {
+    fn capacity_not_less_than_len() {
         let mut a = Vc::new();
         let mut item = 0;
 
@@ -2581,7 +2547,7 @@ mod tests {
     }
 
     #[test]
-    fn test_retain() {
+    fn retain() {
         let mut vs: Vc<i32> = Vc::new();
         for x in 0..130 {
             vs.push(x);
@@ -2596,7 +2562,7 @@ mod tests {
     }
 
     #[test]
-    fn test_type_inference() {
+    fn type_inference() {
         // Simply makes sure that `Vc::default` can compile
 
         let mut vc_default = Vc::default();
