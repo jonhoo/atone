@@ -548,7 +548,7 @@ impl<T, const R: usize> CustomVc<T, R> {
     /// buf.shrink_to(0);
     /// assert!(buf.capacity() >= 4);
     /// ```
-    fn shrink_to(&mut self, min_capacity: usize) {
+    pub fn shrink_to(&mut self, min_capacity: usize) {
         // Calculate the minimal number of elements that we need to reserve
         // space for.
         let mut need = self.new_tail.len();
